@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Bitácora técnica del laboratorio FabLab para el proyecto de I+D.">
+  <title>FabLab I+D | Bitácora de Ingeniería</title>
+  <link rel="icon" type="image/jpeg" href="../images/logofablab.jpg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="Ir a la portada">
+      <img class="brand-mark" src="../images/logofablab.jpg" alt="Logo FabLab">
+      <span><strong>FabLab I+D</strong><small>Bitácora de ingeniería y prototipado</small></span>
+    </a>
+    <div class="header-actions">
+      <span id="authBadge" class="status-badge" hidden>Edición activa</span>
+      <button id="authBtn" class="button button-primary" type="button">Acceso de equipo</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación del proyecto">
+      <div class="sidebar-intro">
+        <span class="eyebrow">Proyecto 2026</span>
+        <h1>Diario de campo</h1>
+        <p>Decisiones, pruebas y aprendizajes documentados semana a semana.</p>
+      </div>
+      <div class="sidebar-section">
+        <div class="section-heading"><span class="eyebrow">Recorrido</span><span id="weekCount" class="count-label">0 semanas</span></div>
+        <ul id="tabList" class="tab-list"></ul>
+      </div>
+      <div id="tabAdminControls" class="sidebar-section admin-controls" hidden>
+        <span class="eyebrow">Gestión</span>
+        <button id="newTabBtn" class="button button-secondary button-wide" type="button">+ Añadir semana</button>
+        <button id="deleteTabBtn" class="button button-danger button-wide" type="button">Eliminar semana actual</button>
+      </div>
+      <div class="sidebar-note"><span class="note-dot"></span><p>Un buen prototipo también deja registro de lo que no funcionó.</p></div>
+    </aside>
+
+    <main class="main-content">
+      <div id="tabContentContainer"></div>
+      <section id="editorPanel" class="editor-panel" hidden>
+        <div class="editor-heading">
+          <div><span class="eyebrow">Modo de edición</span><h2 id="editorTitle">Nuevo registro de avance</h2><p>Construye la entrada por bloques. Cada bloque se transforma en un objeto JSON listo para Supabase.</p></div>
+          <span class="editor-save-state" id="editorSaveState">Borrador local</span>
+        </div>
+        <label class="field-label" for="entryTitle">Título del registro</label>
+        <input id="entryTitle" class="form-control title-input" type="text" maxlength="120" placeholder="Ej. Validación del primer mecanismo">
+        <div class="block-toolbar" aria-label="Añadir bloques">
+          <span class="toolbar-label">Añadir bloque</span>
+          <button class="block-add-button" type="button" data-add-block="text">+ Párrafo</button>
+          <button class="block-add-button" type="button" data-add-block="image">+ Imagen</button>
+          <button class="block-add-button" type="button" data-add-block="comparison">+ Cuadro comparativo</button>
+        </div>
+        <p class="drop-hint">Puedes ordenar el relato por bloques y adjuntar imágenes desde el área de carga.</p>
+        <div id="editorBlocks" class="editor-blocks" aria-live="polite"></div>
+        <div id="editorEmptyState" class="editor-empty-state"><span class="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual o una comparación de ideas.</p></div>
+        <div class="editor-footer"><button id="clearBlocksBtn" class="button button-ghost" type="button">Limpiar borrador</button><button id="saveEntryBtn" class="button button-primary" type="button">Guardar avance</button></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="authDialog" class="auth-dialog">
+    <form id="authForm" class="auth-form" method="dialog">
+      <button id="closeAuthBtn" class="dialog-close" type="button" aria-label="Cerrar">&times;</button>
+      <span class="eyebrow">Área privada</span><h2>Entrar al laboratorio</h2>
+      <p class="dialog-copy">La interfaz está preparada para Supabase Auth. Mientras conectamos el proyecto, puedes probarla en modo demostración.</p>
+      <label class="field-label" for="authEmail">Correo del equipo</label>
+      <input id="authEmail" class="form-control" type="email" autocomplete="email" placeholder="equipo@fablab.local" required>
+      <label class="field-label" for="authPassword">Contraseña</label>
+      <input id="authPassword" class="form-control" type="password" autocomplete="current-password" minlength="8" required>
+      <p id="authError" class="form-error" role="alert" hidden></p>
+      <button class="button button-primary button-wide" type="submit">Continuar</button>
+      <small class="demo-label">Modo demostración: cualquier correo válido y una contraseña de 8 caracteres.</small>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <footer class="site-footer">FabLab I+D <span>/</span> Registro técnico de investigación aplicada</footer>
+  <script src="script.js"></script>
+</body>
+</html>
