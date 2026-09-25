@@ -171,7 +171,10 @@ function renderEntry(entry) {
 }
 
 function renderBlock(block) {
-  if (block.type === "image") return block.dataUrl ? `<figure class="content-image"><img src="${block.dataUrl}" alt="${escapeHtml(block.alt || "Evidencia visual")}"><figcaption>${escapeHtml(block.fileName || "Evidencia visual")}</figcaption></figure>` : "";
+  if (block.type === "image") {
+    const imageSource = block.url || block.dataUrl;
+    return imageSource ? `<figure class="content-image"><img src="${imageSource}" alt="${escapeHtml(block.alt || "Evidencia visual")}"><figcaption>${escapeHtml(block.fileName || "Evidencia visual")}</figcaption></figure>` : "";
+  }
   if (block.type === "comparison") return `<section class="content-comparison"><div class="comparison-heading"><span class="block-kicker">Matriz de decisión</span><h4>${escapeHtml(block.title)}</h4></div><div class="comparison-grid">${(block.ideas || []).map(idea => `<div class="comparison-card"><h5>${escapeHtml(idea.title)}</h5><p>${escapeHtml(idea.description)}</p><div class="comparison-pro"><b>A favor</b>${escapeHtml(idea.pros)}</div><div class="comparison-con"><b>Riesgos</b>${escapeHtml(idea.cons)}</div></div>`).join("")}</div></section>`;
   return `<div class="content-text">${sanitizeRichHtml(block.content || "")}</div>`;
 }
@@ -184,7 +187,7 @@ function renderEditorBlocks() {
 function renderEditorBlock(block, index) {
   const label = block.type === "text" ? "Párrafo" : block.type === "image" ? "Imagen" : "Cuadro comparativo";
   const header = `<div class="block-header"><span><i class="block-number">${String(index + 1).padStart(2, "0")}</i>${label}</span><button class="block-remove" type="button" data-remove-block="${index}" aria-label="Eliminar bloque">×</button></div>`;
-  if (block.type === "image") return `<article class="editor-block block-image animate-in" data-block-index="${index}">${header}<label class="image-dropzone" data-drop-index="${index}">${block.dataUrl ? `<img src="${block.dataUrl}" alt="Vista previa">` : `<span class="upload-icon">↥</span><strong>Arrastra una imagen aquí</strong><small>o haz clic para buscar un archivo · máximo 8 MB</small>`}<input type="file" accept="image/*" data-image-input="${index}"></label><div class="image-fields"><input class="form-control" type="text" value="${escapeHtml(block.alt)}" placeholder="Texto alternativo" data-block-field="alt" data-block-index="${index}"><span class="file-name">${escapeHtml(block.fileName || "Sin archivo seleccionado")}</span></div></article>`;
+  if (block.type === "image") return `<article class="editor-block block-image animate-in" data-block-index="${index}">${header}<label class="image-dropzone" data-drop-index="${index}">${block.url || block.dataUrl ? `<img src="${block.url || block.dataUrl}" alt="Vista previa">` : `<span class="upload-icon">↥</span><strong>Arrastra una imagen aquí</strong><small>o haz clic para buscar un archivo · máximo 8 MB</small>`}<input type="file" accept="image/*" data-image-input="${index}"></label><div class="image-fields"><input class="form-control" type="text" value="${escapeHtml(block.alt)}" placeholder="Texto alternativo" data-block-field="alt" data-block-index="${index}"><span class="file-name">${escapeHtml(block.fileName || "Sin archivo seleccionado")}</span></div></article>`;
   if (block.type === "comparison") return `<article class="editor-block block-comparison animate-in" data-block-index="${index}">${header}<input class="form-control block-title" type="text" value="${escapeHtml(block.title)}" placeholder="Título del cuadro" data-block-field="title" data-block-index="${index}"><div class="idea-editor-list">${block.ideas.map((idea, ideaIndex) => `<div class="idea-editor-row"><input class="form-control" type="text" value="${escapeHtml(idea.title)}" placeholder="Nombre de opción" data-idea-field="title" data-block-index="${index}" data-idea-index="${ideaIndex}"><textarea class="form-control" placeholder="Descripción" data-idea-field="description" data-block-index="${index}" data-idea-index="${ideaIndex}">${escapeHtml(idea.description)}</textarea><input class="form-control" type="text" value="${escapeHtml(idea.pros)}" placeholder="A favor" data-idea-field="pros" data-block-index="${index}" data-idea-index="${ideaIndex}"><input class="form-control" type="text" value="${escapeHtml(idea.cons)}" placeholder="Riesgos / en contra" data-idea-field="cons" data-block-index="${index}" data-idea-index="${ideaIndex}"><button class="idea-remove" type="button" data-remove-idea="${index}" data-idea-index="${ideaIndex}">Eliminar opción</button></div>`).join("")}</div><button class="button button-secondary" type="button" data-add-idea="${index}">+ Añadir opción</button></article>`;
   return `<article class="editor-block block-text animate-in" data-block-index="${index}">${header}<textarea class="block-textarea" placeholder="Describe qué ocurrió, qué observaste y qué aprendiste..." data-block-field="content" data-block-index="${index}">${escapeHtml(block.content)}</textarea></article>`;
 }
@@ -217,7 +220,25 @@ async function attachImageFile(index, file) {
 }
 
 function serializeBlocksForSupabase(blocks) {
-  return blocks.map(block => block.type === "image" ? { type: "image", fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: null } : { ...block });
+  return blocks.map(block => block.type === "image" ? { type: "image", fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: block.storagePath || null, url: block.url || null } : { ...block });
+}
+
+async function uploadImageBlocks(blocks, entryId) {
+  if (!window.supabaseClient?.storage) return blocks;
+  const { data: sessionData } = await window.supabaseClient.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) throw new Error("La sesión de Supabase no está disponible para subir imágenes.");
+
+  return Promise.all(blocks.map(async block => {
+    if (block.type !== "image" || !block.dataUrl || block.url) return block;
+    const fileName = (block.fileName || "evidencia.jpg").replace(/[^a-zA-Z0-9._-]/g, "-");
+    const storagePath = `${userId}/${entryId}/${Date.now()}-${fileName}`;
+    const imageBlob = await fetch(block.dataUrl).then(response => response.blob());
+    const { error } = await window.supabaseClient.storage.from("project-media").upload(storagePath, imageBlob, { contentType: block.mimeType || "image/jpeg", upsert: false });
+    if (error) throw error;
+    const { data } = window.supabaseClient.storage.from("project-media").getPublicUrl(storagePath);
+    return { ...block, url: data.publicUrl, storagePath, dataUrl: data.publicUrl };
+  }));
 }
 
 async function saveEntryToSupabase(payload) {
@@ -252,6 +273,14 @@ async function saveNewEntry() {
   if (!validBlocks.length) return showToast("Añade al menos un bloque antes de guardar.", "error");
   const tab = getCurrentTab();
   const entry = { id: `entry-${Date.now()}`, title, blocks: validBlocks, createdAt: new Date().toISOString() };
+  let preparedBlocks;
+  try {
+    preparedBlocks = await uploadImageBlocks(validBlocks, entry.id);
+  } catch (error) {
+    showToast(`No se pudo subir la imagen: ${error.message}`, "error");
+    return;
+  }
+  entry.blocks = preparedBlocks;
   const result = await saveEntryToSupabase({ tab_id: tab.id, title: entry.title, blocks: serializeBlocksForSupabase(entry.blocks), created_at: entry.createdAt });
   if (result.error) return showToast("No se pudo preparar el registro para Supabase.", "error");
   tab.entries.push(entry);
