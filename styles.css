@@ -23,6 +23,7 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .global-nav { display: flex; align-items: center; justify-content: center; gap: clamp(1rem, 3vw, 3rem); margin-left: auto; }
+.content-video video { display: block; width: min(100%, 760px); max-height: 520px; background: #102530; }
 .institution-logos { display: flex; align-items: center; gap: .4rem; }
 .institution-logo { display: grid; place-items: center; min-width: 3.8rem; min-height: 2.7rem; padding: .3rem .5rem; color: var(--steel); background: rgba(255,255,255,.82); border: 1px solid var(--line); border-radius: .5rem; font: 600 .54rem 'DM Mono', monospace; line-height: 1.2; text-align: center; transition: transform .2s, box-shadow .2s; }
 .institution-logo:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(23,35,46,.1); }

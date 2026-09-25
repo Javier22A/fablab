@@ -1,5 +1,6 @@
 const DATA_KEY = "proyecto_id_data";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
 const AUTH_MODE = window.supabaseClient ? "supabase" : "demo";
 
@@ -20,6 +21,7 @@ function cloneDefaultData() {
 
 function createBlock(type) {
   if (type === "image") return { type: "image", fileName: "", mimeType: "", alt: "Evidencia visual", dataUrl: "" };
+  if (type === "video") return { type: "video", fileName: "", mimeType: "", alt: "Video de evidencia", file: null, previewUrl: "" };
   if (type === "comparison") return { type: "comparison", title: "Comparación de alternativas", ideas: [{ title: "Opción A", description: "", pros: "", cons: "" }] };
   return { type: "text", content: "" };
 }
@@ -36,6 +38,7 @@ function normalizeEntry(entry) {
 }
 
 function loadData() {
+  if (AUTH_MODE === "supabase") return cloneDefaultData();
   const stored = localStorage.getItem(DATA_KEY);
   if (!stored) return cloneDefaultData();
   try {
@@ -49,6 +52,7 @@ function loadData() {
 }
 
 function saveData(data) {
+  if (AUTH_MODE === "supabase") return true;
   try {
     localStorage.setItem(DATA_KEY, JSON.stringify(data));
     return true;
@@ -117,6 +121,31 @@ async function loadEntriesFromSupabase() {
   renderView();
 }
 
+async function loadTabsFromSupabase() {
+  if (!window.supabaseClient?.from) return;
+
+  const { data, error } = await window.supabaseClient
+    .from("tabs")
+    .select("id, title, is_deletable, sort_order")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    showToast("No se pudieron cargar las semanas de Supabase.", "error");
+    console.error("Supabase tabs load error:", error);
+    return;
+  }
+
+  siteData.tabs = data.map(tab => ({
+    id: tab.id,
+    title: tab.title,
+    isDeletable: tab.is_deletable,
+    entries: []
+  }));
+
+  if (!siteData.tabs.some(tab => tab.id === activeTabId)) activeTabId = siteData.tabs[0]?.id || "portada";
+  renderView();
+}
+
 function setAuthenticatedState(session) {
   isMemberAuthenticated = Boolean(session);
   document.getElementById("authBadge").hidden = !isMemberAuthenticated;
@@ -175,6 +204,10 @@ function renderBlock(block) {
     const imageSource = block.url || block.dataUrl;
     return imageSource ? `<figure class="content-image"><img src="${imageSource}" alt="${escapeHtml(block.alt || "Evidencia visual")}"><figcaption>${escapeHtml(block.fileName || "Evidencia visual")}</figcaption></figure>` : "";
   }
+  if (block.type === "video") {
+    const videoSource = block.url || block.previewUrl;
+    return videoSource ? `<figure class="content-video"><video controls preload="metadata" src="${videoSource}"></video><figcaption>${escapeHtml(block.fileName || "Video de evidencia")}</figcaption></figure>` : "";
+  }
   if (block.type === "comparison") return `<section class="content-comparison"><div class="comparison-heading"><span class="block-kicker">Matriz de decisión</span><h4>${escapeHtml(block.title)}</h4></div><div class="comparison-grid">${(block.ideas || []).map(idea => `<div class="comparison-card"><h5>${escapeHtml(idea.title)}</h5><p>${escapeHtml(idea.description)}</p><div class="comparison-pro"><b>A favor</b>${escapeHtml(idea.pros)}</div><div class="comparison-con"><b>Riesgos</b>${escapeHtml(idea.cons)}</div></div>`).join("")}</div></section>`;
   return `<div class="content-text">${sanitizeRichHtml(block.content || "")}</div>`;
 }
@@ -185,9 +218,10 @@ function renderEditorBlocks() {
 }
 
 function renderEditorBlock(block, index) {
-  const label = block.type === "text" ? "Párrafo" : block.type === "image" ? "Imagen" : "Cuadro comparativo";
+  const label = block.type === "text" ? "Párrafo" : block.type === "image" ? "Imagen" : block.type === "video" ? "Video" : "Cuadro comparativo";
   const header = `<div class="block-header"><span><i class="block-number">${String(index + 1).padStart(2, "0")}</i>${label}</span><button class="block-remove" type="button" data-remove-block="${index}" aria-label="Eliminar bloque">×</button></div>`;
   if (block.type === "image") return `<article class="editor-block block-image animate-in" data-block-index="${index}">${header}<label class="image-dropzone" data-drop-index="${index}">${block.url || block.dataUrl ? `<img src="${block.url || block.dataUrl}" alt="Vista previa">` : `<span class="upload-icon">↥</span><strong>Arrastra una imagen aquí</strong><small>o haz clic para buscar un archivo · máximo 8 MB</small>`}<input type="file" accept="image/*" data-image-input="${index}"></label><div class="image-fields"><input class="form-control" type="text" value="${escapeHtml(block.alt)}" placeholder="Texto alternativo" data-block-field="alt" data-block-index="${index}"><span class="file-name">${escapeHtml(block.fileName || "Sin archivo seleccionado")}</span></div></article>`;
+  if (block.type === "video") return `<article class="editor-block block-video animate-in" data-block-index="${index}">${header}<label class="image-dropzone" data-drop-index="${index}">${block.url || block.previewUrl ? `<video controls muted src="${block.url || block.previewUrl}"></video>` : `<span class="upload-icon">↥</span><strong>Arrastra un video aquí</strong><small>o haz clic para buscar un archivo · máximo 50 MB</small>`}<input type="file" accept="video/*" data-video-input="${index}"></label><div class="image-fields"><input class="form-control" type="text" value="${escapeHtml(block.alt)}" placeholder="Descripción del video" data-block-field="alt" data-block-index="${index}"><span class="file-name">${escapeHtml(block.fileName || "Sin archivo seleccionado")}</span></div></article>`;
   if (block.type === "comparison") return `<article class="editor-block block-comparison animate-in" data-block-index="${index}">${header}<input class="form-control block-title" type="text" value="${escapeHtml(block.title)}" placeholder="Título del cuadro" data-block-field="title" data-block-index="${index}"><div class="idea-editor-list">${block.ideas.map((idea, ideaIndex) => `<div class="idea-editor-row"><input class="form-control" type="text" value="${escapeHtml(idea.title)}" placeholder="Nombre de opción" data-idea-field="title" data-block-index="${index}" data-idea-index="${ideaIndex}"><textarea class="form-control" placeholder="Descripción" data-idea-field="description" data-block-index="${index}" data-idea-index="${ideaIndex}">${escapeHtml(idea.description)}</textarea><input class="form-control" type="text" value="${escapeHtml(idea.pros)}" placeholder="A favor" data-idea-field="pros" data-block-index="${index}" data-idea-index="${ideaIndex}"><input class="form-control" type="text" value="${escapeHtml(idea.cons)}" placeholder="Riesgos / en contra" data-idea-field="cons" data-block-index="${index}" data-idea-index="${ideaIndex}"><button class="idea-remove" type="button" data-remove-idea="${index}" data-idea-index="${ideaIndex}">Eliminar opción</button></div>`).join("")}</div><button class="button button-secondary" type="button" data-add-idea="${index}">+ Añadir opción</button></article>`;
   return `<article class="editor-block block-text animate-in" data-block-index="${index}">${header}<textarea class="block-textarea" placeholder="Describe qué ocurrió, qué observaste y qué aprendiste..." data-block-field="content" data-block-index="${index}">${escapeHtml(block.content)}</textarea></article>`;
 }
@@ -219,25 +253,43 @@ async function attachImageFile(index, file) {
   try { editorBlocks[index].dataUrl = await compressImage(file); editorBlocks[index].fileName = file.name; editorBlocks[index].mimeType = file.type; renderEditorBlocks(); showToast("Imagen preparada para el registro."); } catch (error) { showToast(error.message, "error"); }
 }
 
-function serializeBlocksForSupabase(blocks) {
-  return blocks.map(block => block.type === "image" ? { type: "image", fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: block.storagePath || null, url: block.url || null } : { ...block });
+function attachVideoFile(index, file) {
+  if (!file || !file.type.startsWith("video/")) return showToast("Selecciona un archivo de video válido.", "error");
+  if (file.size > MAX_VIDEO_BYTES) return showToast("El video supera el límite de 50 MB.", "error");
+  const block = editorBlocks[index];
+  if (block.previewUrl) URL.revokeObjectURL(block.previewUrl);
+  block.file = file;
+  block.fileName = file.name;
+  block.mimeType = file.type;
+  block.previewUrl = URL.createObjectURL(file);
+  renderEditorBlocks();
+  showToast("Video preparado para el registro.");
 }
 
-async function uploadImageBlocks(blocks, entryId) {
+function serializeBlocksForSupabase(blocks) {
+  return blocks.map(block => {
+    if (block.type === "image" || block.type === "video") {
+      return { type: block.type, fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: block.storagePath || null, url: block.url || null };
+    }
+    return { ...block };
+  });
+}
+
+async function uploadMediaBlocks(blocks, entryId) {
   if (!window.supabaseClient?.storage) return blocks;
   const { data: sessionData } = await window.supabaseClient.auth.getSession();
   const userId = sessionData.session?.user?.id;
   if (!userId) throw new Error("La sesión de Supabase no está disponible para subir imágenes.");
 
   return Promise.all(blocks.map(async block => {
-    if (block.type !== "image" || !block.dataUrl || block.url) return block;
+    if (!((block.type === "image" && block.dataUrl) || (block.type === "video" && block.file)) || block.url) return block;
     const fileName = (block.fileName || "evidencia.jpg").replace(/[^a-zA-Z0-9._-]/g, "-");
     const storagePath = `${userId}/${entryId}/${Date.now()}-${fileName}`;
-    const imageBlob = await fetch(block.dataUrl).then(response => response.blob());
-    const { error } = await window.supabaseClient.storage.from("project-media").upload(storagePath, imageBlob, { contentType: block.mimeType || "image/jpeg", upsert: false });
+    const mediaBlob = block.type === "image" ? await fetch(block.dataUrl).then(response => response.blob()) : block.file;
+    const { error } = await window.supabaseClient.storage.from("project-media").upload(storagePath, mediaBlob, { contentType: block.mimeType || "application/octet-stream", upsert: false });
     if (error) throw error;
     const { data } = window.supabaseClient.storage.from("project-media").getPublicUrl(storagePath);
-    return { ...block, url: data.publicUrl, storagePath, dataUrl: data.publicUrl };
+    return { ...block, url: data.publicUrl, storagePath, dataUrl: block.type === "image" ? data.publicUrl : "", previewUrl: data.publicUrl, file: null };
   }));
 }
 
@@ -269,13 +321,13 @@ function toggleAuth() {
 
 async function saveNewEntry() {
   const title = document.getElementById("entryTitle").value.trim() || "Registro de actividad";
-  const validBlocks = editorBlocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.dataUrl : block.ideas.length);
+  const validBlocks = editorBlocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.dataUrl : block.type === "video" ? block.file : block.ideas.length);
   if (!validBlocks.length) return showToast("Añade al menos un bloque antes de guardar.", "error");
   const tab = getCurrentTab();
   const entry = { id: `entry-${Date.now()}`, title, blocks: validBlocks, createdAt: new Date().toISOString() };
   let preparedBlocks;
   try {
-    preparedBlocks = await uploadImageBlocks(validBlocks, entry.id);
+    preparedBlocks = await uploadMediaBlocks(validBlocks, entry.id);
   } catch (error) {
     showToast(`No se pudo subir la imagen: ${error.message}`, "error");
     return;
@@ -291,8 +343,38 @@ async function saveNewEntry() {
   showToast("Avance guardado y preparado para Supabase.");
 }
 
-function createNewTab() { const number = siteData.tabs.length; const id = `semana-${number}`; siteData.tabs.push({ id, title: `Semana ${String(number).padStart(2, "0")}`, isDeletable: true, entries: [] }); activeTabId = id; saveData(siteData); renderView(); }
-function deleteCurrentTab() { const tab = getCurrentTab(); if (!tab?.isDeletable) return showToast("La portada no se puede eliminar.", "error"); if (!window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return; siteData.tabs = siteData.tabs.filter(item => item.id !== activeTabId); activeTabId = "portada"; saveData(siteData); renderView(); }
+async function createNewTab() {
+  const number = siteData.tabs.length;
+  const newTab = { id: `semana-${number}`, title: `Semana ${String(number).padStart(2, "0")}`, isDeletable: true, entries: [] };
+
+  if (AUTH_MODE === "supabase") {
+    const { error } = await window.supabaseClient.from("tabs").insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: number });
+    if (error) return showToast("No se pudo crear la semana en Supabase.", "error");
+  }
+
+  siteData.tabs.push(newTab);
+  activeTabId = newTab.id;
+  saveData(siteData);
+  renderView();
+}
+
+async function deleteCurrentTab() {
+  const tab = getCurrentTab();
+  if (!tab?.isDeletable) return showToast("La portada no se puede eliminar.", "error");
+  if (!window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return;
+
+  if (AUTH_MODE === "supabase") {
+    const { error: entriesError } = await window.supabaseClient.from("entries").delete().eq("tab_id", activeTabId);
+    if (entriesError) return showToast("No se pudieron eliminar los registros de la semana.", "error");
+    const { error: tabError } = await window.supabaseClient.from("tabs").delete().eq("id", activeTabId);
+    if (tabError) return showToast("No se pudo eliminar la semana en Supabase.", "error");
+  }
+
+  siteData.tabs = siteData.tabs.filter(item => item.id !== activeTabId);
+  activeTabId = "portada";
+  saveData(siteData);
+  renderView();
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("authModeHint").textContent = AUTH_MODE === "supabase" ? "Autenticación gestionada por Supabase." : "Modo demostración: cualquier correo válido y una contraseña de 8 caracteres.";
@@ -308,10 +390,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector(".block-toolbar").addEventListener("click", event => { if (event.target.dataset.addBlock) addBlock(event.target.dataset.addBlock); });
   document.getElementById("editorBlocks").addEventListener("input", handleEditorInput);
   document.getElementById("editorBlocks").addEventListener("click", event => { if (event.target.dataset.removeBlock) removeBlock(Number(event.target.dataset.removeBlock)); if (event.target.dataset.addIdea) addIdea(Number(event.target.dataset.addIdea)); if (event.target.dataset.removeIdea) removeIdea(Number(event.target.dataset.removeIdea), Number(event.target.dataset.ideaIndex)); });
-  document.getElementById("editorBlocks").addEventListener("change", event => { if (event.target.dataset.imageInput) attachImageFile(Number(event.target.dataset.imageInput), event.target.files[0]); });
+  document.getElementById("editorBlocks").addEventListener("change", event => { if (event.target.dataset.imageInput) attachImageFile(Number(event.target.dataset.imageInput), event.target.files[0]); if (event.target.dataset.videoInput) attachVideoFile(Number(event.target.dataset.videoInput), event.target.files[0]); });
   document.getElementById("editorBlocks").addEventListener("dragover", event => { if (event.target.closest("[data-drop-index]")) event.preventDefault(); });
-  document.getElementById("editorBlocks").addEventListener("drop", event => { const zone = event.target.closest("[data-drop-index]"); if (!zone) return; event.preventDefault(); attachImageFile(Number(zone.dataset.dropIndex), event.dataTransfer.files[0]); });
+  document.getElementById("editorBlocks").addEventListener("drop", event => { const zone = event.target.closest("[data-drop-index]"); if (!zone) return; event.preventDefault(); const index = Number(zone.dataset.dropIndex); const file = event.dataTransfer.files[0]; if (editorBlocks[index].type === "video") attachVideoFile(index, file); else attachImageFile(index, file); });
   renderView();
   restoreSupabaseSession();
-  loadEntriesFromSupabase();
+  loadTabsFromSupabase().then(loadEntriesFromSupabase);
 });
