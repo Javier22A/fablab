@@ -73,10 +73,14 @@ function escapeHtml(value = "") {
 function sanitizeRichHtml(html) {
   const template = document.createElement("template");
   template.innerHTML = html;
-  template.content.querySelectorAll("script, style, iframe, object, embed, form").forEach(node => node.remove());
-  template.content.querySelectorAll("*").forEach(node => [...node.attributes].forEach(attribute => {
-    if (attribute.name.toLowerCase().startsWith("on") || attribute.name.toLowerCase() === "style") node.removeAttribute(attribute.name);
-  }));
+  const allowedTags = new Set(["B", "STRONG", "I", "EM", "U", "S", "P", "BR", "UL", "OL", "LI", "H3", "H4", "BLOCKQUOTE"]);
+  template.content.querySelectorAll("*").forEach(node => {
+    if (!allowedTags.has(node.tagName)) {
+      node.replaceWith(...node.childNodes);
+      return;
+    }
+    [...node.attributes].forEach(attribute => node.removeAttribute(attribute.name));
+  });
   return template.innerHTML;
 }
 
@@ -196,17 +200,17 @@ function renderPublicView() {
 }
 
 function renderEntry(entry) {
-  return `<article class="entry-card animate-in"><div class="entry-meta"><span>Registro de avance</span><time>${new Date(entry.createdAt || Date.now()).toLocaleDateString("es-EC")}</time></div><h3>${escapeHtml(entry.title)}</h3>${(entry.blocks || []).map(renderBlock).join("")} ${isMemberAuthenticated ? `<button class="entry-delete" type="button" data-delete-entry="${entry.id}">Eliminar registro</button>` : ""}</article>`;
+  return `<article class="entry-card animate-in"><div class="entry-meta"><span>Registro de avance</span><time>${new Date(entry.createdAt || Date.now()).toLocaleDateString("es-EC")}</time></div><h3>${escapeHtml(entry.title)}</h3>${(entry.blocks || []).map(renderBlock).join("")} ${isMemberAuthenticated ? `<button class="entry-delete" type="button" data-delete-entry="${escapeHtml(entry.id)}">Eliminar registro</button>` : ""}</article>`;
 }
 
 function renderBlock(block) {
   if (block.type === "image") {
     const imageSource = block.url || block.dataUrl;
-    return imageSource ? `<figure class="content-image"><img src="${imageSource}" alt="${escapeHtml(block.alt || "Evidencia visual")}"><figcaption>${escapeHtml(block.fileName || "Evidencia visual")}</figcaption></figure>` : "";
+    return imageSource ? `<figure class="content-image"><img src="${escapeHtml(imageSource)}" alt="${escapeHtml(block.alt || "Evidencia visual")}"><figcaption>${escapeHtml(block.fileName || "Evidencia visual")}</figcaption></figure>` : "";
   }
   if (block.type === "video") {
     const videoSource = block.url || block.previewUrl;
-    return videoSource ? `<figure class="content-video"><video controls preload="metadata" src="${videoSource}"></video><figcaption>${escapeHtml(block.fileName || "Video de evidencia")}</figcaption></figure>` : "";
+    return videoSource ? `<figure class="content-video"><video controls preload="metadata" src="${escapeHtml(videoSource)}"></video><figcaption>${escapeHtml(block.fileName || "Video de evidencia")}</figcaption></figure>` : "";
   }
   if (block.type === "comparison") return `<section class="content-comparison"><div class="comparison-heading"><span class="block-kicker">Matriz de decisión</span><h4>${escapeHtml(block.title)}</h4></div><div class="comparison-grid">${(block.ideas || []).map(idea => `<div class="comparison-card"><h5>${escapeHtml(idea.title)}</h5><p>${escapeHtml(idea.description)}</p><div class="comparison-pro"><b>A favor</b>${escapeHtml(idea.pros)}</div><div class="comparison-con"><b>Riesgos</b>${escapeHtml(idea.cons)}</div></div>`).join("")}</div></section>`;
   return `<div class="content-text">${sanitizeRichHtml(block.content || "")}</div>`;
@@ -352,9 +356,34 @@ async function saveNewEntry() {
   showToast("Avance guardado y preparado para Supabase.");
 }
 
+async function deleteEntry(entryId) {
+  const tab = getCurrentTab();
+  const entry = tab?.entries.find(item => item.id === entryId);
+  if (!entry || !window.confirm("¿Eliminar este registro y sus archivos multimedia?")) return;
+
+  if (AUTH_MODE === "supabase") {
+    const { error } = await window.supabaseClient.from("entries").delete().eq("id", entryId);
+    if (error) return showToast("No se pudo eliminar el registro.", "error");
+
+    const storagePaths = (entry.blocks || []).map(block => block.storagePath).filter(Boolean);
+    if (storagePaths.length) {
+      const { error: storageError } = await window.supabaseClient.storage.from("project-media").remove(storagePaths);
+      if (storageError) showToast("Registro eliminado; no se pudieron limpiar todos sus archivos.", "error");
+    }
+  }
+
+  tab.entries = tab.entries.filter(item => item.id !== entryId);
+  saveData(siteData);
+  renderView();
+  showToast("Registro eliminado.");
+}
+
 async function createNewTab() {
-  const number = siteData.tabs.length;
-  const newTab = { id: `semana-${number}`, title: `Semana ${String(number).padStart(2, "0")}`, isDeletable: true, entries: [] };
+  const number = siteData.tabs.reduce((highest, tab) => {
+    const match = tab.title.match(/(\d+)/);
+    return Math.max(highest, match ? Number(match[1]) : 0);
+  }, 0) + 1;
+  const newTab = { id: `semana-${Date.now()}`, title: `Semana ${String(number).padStart(2, "0")}`, isDeletable: true, entries: [] };
 
   if (AUTH_MODE === "supabase") {
     const { error } = await window.supabaseClient.from("tabs").insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: number });
@@ -373,8 +402,11 @@ async function deleteCurrentTab() {
   if (!window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return;
 
   if (AUTH_MODE === "supabase") {
+    const { data: remoteEntries } = await window.supabaseClient.from("entries").select("blocks").eq("tab_id", activeTabId);
+    const storagePaths = (remoteEntries || []).flatMap(entry => Array.isArray(entry.blocks) ? entry.blocks.map(block => block.storagePath).filter(Boolean) : []);
     const { error: entriesError } = await window.supabaseClient.from("entries").delete().eq("tab_id", activeTabId);
     if (entriesError) return showToast("No se pudieron eliminar los registros de la semana.", "error");
+    if (storagePaths.length) await window.supabaseClient.storage.from("project-media").remove(storagePaths);
     const { error: tabError } = await window.supabaseClient.from("tabs").delete().eq("id", activeTabId);
     if (tabError) return showToast("No se pudo eliminar la semana en Supabase.", "error");
   }
@@ -395,6 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("saveEntryBtn").addEventListener("click", saveNewEntry);
   document.getElementById("clearBlocksBtn").addEventListener("click", () => { editorBlocks = []; document.getElementById("entryTitle").value = ""; renderEditorBlocks(); });
   document.getElementById("tabList").addEventListener("click", event => { const button = event.target.closest("[data-tab-id]"); if (!button) return; activeTabId = button.dataset.tabId; editorBlocks = []; renderView(); });
+  document.getElementById("tabContentContainer").addEventListener("click", event => { const button = event.target.closest("[data-delete-entry]"); if (button) deleteEntry(button.dataset.deleteEntry); });
   document.querySelector(".brand").addEventListener("click", event => { event.preventDefault(); activeTabId = "portada"; renderView(); });
   document.querySelector(".block-toolbar").addEventListener("click", event => { if (event.target.dataset.addBlock) addBlock(event.target.dataset.addBlock); });
   document.getElementById("editorBlocks").addEventListener("input", handleEditorInput);
