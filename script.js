@@ -1,7 +1,7 @@
 const DATA_KEY = "proyecto_id_data";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
-const AUTH_MODE = "demo";
+const AUTH_MODE = window.supabaseClient ? "supabase" : "demo";
 
 let isMemberAuthenticated = false;
 let activeTabId = "portada";
@@ -197,7 +197,7 @@ async function submitAuth(event) {
 }
 
 function toggleAuth() {
-  if (isMemberAuthenticated) { isMemberAuthenticated = false; editorBlocks = []; document.getElementById("authBadge").hidden = true; document.getElementById("authBtn").textContent = "Acceso de equipo"; renderView(); return; }
+  if (isMemberAuthenticated) { isMemberAuthenticated = false; editorBlocks = []; document.getElementById("authBadge").hidden = true; document.getElementById("authBtn").textContent = "Soy del equipo :)"; renderView(); return; }
   document.getElementById("authError").hidden = true;
   document.getElementById("authDialog").showModal();
 }
@@ -222,6 +222,7 @@ function createNewTab() { const number = siteData.tabs.length; const id = `seman
 function deleteCurrentTab() { const tab = getCurrentTab(); if (!tab?.isDeletable) return showToast("La portada no se puede eliminar.", "error"); if (!window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return; siteData.tabs = siteData.tabs.filter(item => item.id !== activeTabId); activeTabId = "portada"; saveData(siteData); renderView(); }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("authModeHint").textContent = AUTH_MODE === "supabase" ? "Autenticación gestionada por Supabase." : "Modo demostración: cualquier correo válido y una contraseña de 8 caracteres.";
   document.getElementById("authBtn").addEventListener("click", toggleAuth);
   document.getElementById("authForm").addEventListener("submit", submitAuth);
   document.getElementById("closeAuthBtn").addEventListener("click", () => document.getElementById("authDialog").close());

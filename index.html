@@ -14,9 +14,21 @@
       <img class="brand-mark" src="images/logofablab.jpg" alt="Logo FabLab">
       <span><strong>FabLab I+D</strong><small>Bitácora de ingeniería y prototipado</small></span>
     </a>
+    <nav class="global-nav" aria-label="Navegación principal">
+      <div class="institution-logos" aria-label="Instituciones colaboradoras">
+        <span class="institution-logo institution-logo-image"><img src="images/logofablab.jpg" alt="FabLab"></span>
+        <span class="institution-logo">Universidad<br>de Cuenca</span>
+        <span class="institution-logo">Ingeniería<br>Industrial</span>
+      </div>
+      <div class="page-links">
+        <a class="page-link active" href="index.html">Home</a>
+        <a class="page-link" href="about.html">About</a>
+        <a class="page-link" href="final-project.html">Final Project</a>
+      </div>
+    </nav>
     <div class="header-actions">
       <span id="authBadge" class="status-badge" hidden>Edición activa</span>
-      <button id="authBtn" class="button button-primary" type="button">Acceso de equipo</button>
+      <button id="authBtn" class="button button-primary" type="button">Soy del equipo :)</button>
     </div>
   </header>
 
@@ -66,19 +78,21 @@
     <form id="authForm" class="auth-form" method="dialog">
       <button id="closeAuthBtn" class="dialog-close" type="button" aria-label="Cerrar">&times;</button>
       <span class="eyebrow">Área privada</span><h2>Entrar al laboratorio</h2>
-      <p class="dialog-copy">La interfaz está preparada para Supabase Auth. Mientras conectamos el proyecto, puedes probarla en modo demostración.</p>
+      <p class="dialog-copy">Inicia sesión con la cuenta creada en Supabase para habilitar la edición del proyecto.</p>
       <label class="field-label" for="authEmail">Correo del equipo</label>
       <input id="authEmail" class="form-control" type="email" autocomplete="email" placeholder="equipo@fablab.local" required>
       <label class="field-label" for="authPassword">Contraseña</label>
       <input id="authPassword" class="form-control" type="password" autocomplete="current-password" minlength="8" required>
       <p id="authError" class="form-error" role="alert" hidden></p>
       <button class="button button-primary button-wide" type="submit">Continuar</button>
-      <small class="demo-label">Modo demostración: cualquier correo válido y una contraseña de 8 caracteres.</small>
+      <small id="authModeHint" class="demo-label">Conecta Supabase para utilizar cuentas reales.</small>
     </form>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <footer class="site-footer">FabLab I+D <span>/</span> Registro técnico de investigación aplicada</footer>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
