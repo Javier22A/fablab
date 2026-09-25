@@ -88,6 +88,53 @@ function getCurrentTab() {
   return siteData.tabs.find(tab => tab.id === activeTabId);
 }
 
+async function loadEntriesFromSupabase() {
+  if (!window.supabaseClient?.from) return;
+
+  const { data, error } = await window.supabaseClient
+    .from("entries")
+    .select("id, tab_id, title, blocks, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    showToast("No se pudieron cargar los registros de Supabase.", "error");
+    console.error("Supabase load error:", error);
+    return;
+  }
+
+  const remoteEntries = data.map(entry => ({
+    id: entry.id,
+    tabId: entry.tab_id,
+    title: entry.title,
+    blocks: Array.isArray(entry.blocks) ? entry.blocks : [],
+    createdAt: entry.created_at
+  }));
+
+  siteData.tabs.forEach(tab => {
+    tab.entries = remoteEntries.filter(entry => entry.tabId === tab.id);
+  });
+
+  renderView();
+}
+
+function setAuthenticatedState(session) {
+  isMemberAuthenticated = Boolean(session);
+  document.getElementById("authBadge").hidden = !isMemberAuthenticated;
+  document.getElementById("authBtn").textContent = isMemberAuthenticated ? "Cerrar sesión" : "Soy del equipo :)";
+  renderView();
+}
+
+async function restoreSupabaseSession() {
+  if (!window.supabaseClient?.auth) return;
+
+  const { data, error } = await window.supabaseClient.auth.getSession();
+  if (!error) setAuthenticatedState(data.session);
+
+  window.supabaseClient.auth.onAuthStateChange((_event, session) => {
+    setAuthenticatedState(session);
+  });
+}
+
 function renderTabs() {
   document.getElementById("weekCount").textContent = `${Math.max(0, siteData.tabs.length - 1)} semanas`;
   document.getElementById("tabList").innerHTML = siteData.tabs.map(tab => `
@@ -189,11 +236,8 @@ async function submitAuth(event) {
   event.preventDefault();
   const result = await signIn(document.getElementById("authEmail").value.trim(), document.getElementById("authPassword").value);
   if (result.error) { const error = document.getElementById("authError"); error.textContent = result.error.message; error.hidden = false; return; }
-  isMemberAuthenticated = true;
   document.getElementById("authDialog").close();
-  document.getElementById("authBadge").hidden = false;
-  document.getElementById("authBtn").textContent = "Cerrar sesión";
-  renderView();
+  setAuthenticatedState(result.data.session);
 }
 
 function toggleAuth() {
@@ -239,4 +283,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("editorBlocks").addEventListener("dragover", event => { if (event.target.closest("[data-drop-index]")) event.preventDefault(); });
   document.getElementById("editorBlocks").addEventListener("drop", event => { const zone = event.target.closest("[data-drop-index]"); if (!zone) return; event.preventDefault(); attachImageFile(Number(zone.dataset.dropIndex), event.dataTransfer.files[0]); });
   renderView();
+  restoreSupabaseSession();
+  loadEntriesFromSupabase();
 });
