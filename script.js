@@ -313,8 +313,17 @@ async function submitAuth(event) {
   setAuthenticatedState(result.data.session);
 }
 
-function toggleAuth() {
-  if (isMemberAuthenticated) { isMemberAuthenticated = false; editorBlocks = []; document.getElementById("authBadge").hidden = true; document.getElementById("authBtn").textContent = "Soy del equipo :)"; renderView(); return; }
+async function toggleAuth() {
+  if (isMemberAuthenticated) {
+    if (AUTH_MODE === "supabase" && window.supabaseClient?.auth) {
+      const { error } = await window.supabaseClient.auth.signOut();
+      if (error) return showToast("No se pudo cerrar la sesión.", "error");
+    } else {
+      setAuthenticatedState(null);
+    }
+    editorBlocks = [];
+    return;
+  }
   document.getElementById("authError").hidden = true;
   document.getElementById("authDialog").showModal();
 }
