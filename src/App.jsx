@@ -153,7 +153,12 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
               <article className="entry-card animate-in" key={entry.id}>
                 <div className="entry-meta"><span>Registro de avance</span><time>{new Date(entry.createdAt || Date.now()).toLocaleDateString("es-EC")}</time></div>
                 <h3>{entry.title}</h3><EntryBlocks blocks={entry.blocks || []} />
-                {authenticated && <button className="entry-delete" type="button" onClick={() => entries.delete(entry)}>Eliminar registro</button>}
+                {authenticated && (
+                  <div className="entry-actions">
+                    <button className="entry-edit" type="button" onClick={() => entries.edit(entry)}>Editar</button>
+                    <button className="entry-delete" type="button" onClick={() => entries.delete(entry)}>Eliminar registro</button>
+                  </div>
+                )}
               </article>
             )) : <div className="public-empty animate-in"><span className="empty-icon">○</span><h3>Aún no hay registros publicados</h3><p>El primer avance de esta semana aparecerá aquí.</p></div>}
             {authenticated && <EditorPanel tabTitle={currentTab?.title || "Semana"} editor={editor} />}
@@ -176,13 +181,13 @@ function HomeLanding({ weekCount, entryCount }) {
 function EditorPanel({ tabTitle, editor }) {
   return (
     <section className="editor-panel">
-      <div className="editor-heading"><div><span className="eyebrow">Modo de edición</span><h2>Nuevo registro en {tabTitle}</h2><p>Construye la entrada por bloques. Cada bloque se guarda como JSON en Supabase.</p></div><span className="editor-save-state">{editor.saving ? "Guardando…" : "Listo para editar"}</span></div>
+      <div className="editor-heading"><div><span className="eyebrow">{editor.editing ? "Editar publicación" : "Modo de edición"}</span><h2>{editor.editing ? "Actualizar registro" : `Nuevo registro en ${tabTitle}`}</h2><p>Construye la entrada por bloques. Cada bloque se guarda como JSON en Supabase.</p></div><span className="editor-save-state">{editor.saving ? "Guardando…" : "Listo para editar"}</span></div>
       <label className="field-label" htmlFor="entryTitle">Título del registro</label>
       <input id="entryTitle" className="form-control title-input" value={editor.title} onChange={event => editor.setTitle(event.target.value)} maxLength={120} placeholder="Ej. Validación del primer mecanismo" />
       <div className="block-toolbar" aria-label="Añadir bloques"><span className="toolbar-label">Añadir bloque</span>{[["text", "Párrafo"], ["image", "Imagen"], ["video", "Video"], ["comparison", "Cuadro comparativo"]].map(([type, label]) => <button className="block-add-button" key={type} type="button" onClick={() => editor.addBlock(type)}>+ {label}</button>)}</div>
       <p className="drop-hint">Puedes adjuntar imágenes o videos desde el área de carga.</p>
       {editor.blocks.length ? <BlockEditor {...editor.blockProps} /> : <div className="editor-empty-state"><span className="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual, un video o una comparación.</p></div>}
-      <div className="editor-footer"><button className="button button-ghost" type="button" onClick={editor.clear}>Limpiar borrador</button><button className="button button-primary" type="button" disabled={editor.saving} onClick={editor.save}>Guardar avance</button></div>
+      <div className="editor-footer"><button className="button button-ghost" type="button" onClick={editor.clear}>{editor.editing ? "Cancelar edición" : "Limpiar borrador"}</button><button className="button button-primary" type="button" disabled={editor.saving} onClick={editor.save}>{editor.saving ? "Guardando…" : editor.editing ? "Guardar cambios" : "Guardar avance"}</button></div>
     </section>
   );
 }
@@ -203,6 +208,7 @@ export default function App({ page = "home" }) {
   const [loading, setLoading] = useState(Boolean(supabaseClient));
   const [blocks, setBlocks] = useState([]);
   const [entryTitle, setEntryTitle] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -290,6 +296,8 @@ export default function App({ page = "home" }) {
     }
     setSession(null);
     setBlocks([]);
+    setEditingEntryId(null);
+    setEntryTitle("");
     setNotice({ type: "success", message: "Sesión cerrada." });
   }
 
@@ -322,50 +330,126 @@ export default function App({ page = "home" }) {
   }
 
   async function uploadBlocks(entryId, sourceBlocks) {
-    if (!supabaseClient) return sourceBlocks.map(block => ({ ...block }));
+    if (!supabaseClient) return { blocks: sourceBlocks.map(block => ({ ...block })), uploadedPaths: [] };
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const userId = sessionData.session?.user?.id;
     if (!userId) throw new Error("No se encontró la sesión de Supabase.");
 
-    return Promise.all(sourceBlocks.map(async block => {
-      if (!((block.type === "image" && block.file) || (block.type === "video" && block.file))) return blockForStorage(block);
-      const safeName = block.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const storagePath = `${userId}/${entryId}/${newId()}-${safeName}`;
-      const { error } = await supabaseClient.storage.from("project-media").upload(storagePath, block.file, { contentType: block.mimeType || "application/octet-stream", upsert: false });
-      if (error) throw error;
-      const { data } = supabaseClient.storage.from("project-media").getPublicUrl(storagePath);
-      return blockForStorage({ ...block, url: data.publicUrl, storagePath });
-    }));
+    const uploadedPaths = [];
+    try {
+      const preparedBlocks = [];
+      for (const block of sourceBlocks) {
+        if (!((block.type === "image" && block.file) || (block.type === "video" && block.file))) {
+          preparedBlocks.push(blockForStorage(block));
+          continue;
+        }
+        const safeName = block.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const storagePath = `${userId}/${entryId}/${newId()}-${safeName}`;
+        const { error } = await supabaseClient.storage.from("project-media").upload(storagePath, block.file, { contentType: block.mimeType || "application/octet-stream", upsert: false });
+        if (error) throw error;
+        uploadedPaths.push(storagePath);
+        const { data } = supabaseClient.storage.from("project-media").getPublicUrl(storagePath);
+        preparedBlocks.push(blockForStorage({ ...block, url: data.publicUrl, storagePath }));
+      }
+      return { blocks: preparedBlocks, uploadedPaths };
+    } catch (error) {
+      if (uploadedPaths.length) {
+        const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(uploadedPaths);
+        if (cleanupError) console.error("No se pudieron limpiar archivos multimedia subidos parcialmente.", cleanupError);
+      }
+      throw error;
+    }
   }
 
   async function saveEntry() {
     const validBlocks = blocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.file || block.url : block.type === "video" ? block.file || block.url : block.ideas.length > 0);
     if (!validBlocks.length) { setNotice({ type: "error", message: "Añade al menos un bloque antes de guardar." }); return; }
     setSaving(true);
-    const entryId = newId();
-    const createdAt = new Date().toISOString();
+    const existingEntry = editingEntryId
+      ? tabs.flatMap(tab => tab.entries).find(entry => entry.id === editingEntryId)
+      : null;
+    if (editingEntryId && !existingEntry) {
+      setNotice({ type: "error", message: "No se encontró el registro que intentas editar. Recarga la bitácora e inténtalo de nuevo." });
+      return;
+    }
+    const entryId = editingEntryId || newId();
+    const createdAt = existingEntry?.createdAt || new Date().toISOString();
+    let uploadedPaths = [];
+    let mediaCleanupFailed = false;
     try {
-      const preparedBlocks = await uploadBlocks(entryId, validBlocks);
+      const uploadResult = await uploadBlocks(entryId, validBlocks);
+      const preparedBlocks = uploadResult.blocks;
+      uploadedPaths = uploadResult.uploadedPaths;
       const payload = { tab_id: activeTabId, title: entryTitle.trim() || "Registro de actividad", blocks: preparedBlocks, created_at: createdAt };
       let storedEntry;
       if (supabaseClient) {
-        const { data, error } = await supabaseClient.from("entries").insert(payload).select("id, tab_id, title, blocks, created_at").single();
+        const query = editingEntryId
+          ? supabaseClient.from("entries").update({ title: payload.title, blocks: preparedBlocks }).eq("id", entryId)
+          : supabaseClient.from("entries").insert(payload);
+        const { data, error } = await query.select("id, tab_id, title, blocks, created_at").single();
         if (error) throw error;
         storedEntry = { id: data.id, tabId: data.tab_id, title: data.title, blocks: data.blocks, createdAt: data.created_at };
       } else {
         storedEntry = { id: entryId, tabId: activeTabId, title: payload.title, blocks: preparedBlocks.map(block => ({ ...block, file: undefined })), createdAt };
       }
-      updateCurrentTab(tab => ({ ...tab, entries: [...tab.entries, storedEntry] }));
+      if (editingEntryId) {
+        updateCurrentTab(tab => ({ ...tab, entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry) }));
+        const retainedPaths = new Set(preparedBlocks.map(block => block.storagePath).filter(Boolean));
+        const removedPaths = existingEntry.blocks.map(block => block.storagePath).filter(path => path && !retainedPaths.has(path));
+        if (removedPaths.length && supabaseClient) {
+          const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(removedPaths);
+          if (cleanupError) {
+            console.error("El registro se actualizó, pero no se pudieron limpiar algunos archivos anteriores.", cleanupError);
+            mediaCleanupFailed = true;
+          }
+        }
+      } else {
+        updateCurrentTab(tab => ({ ...tab, entries: [...tab.entries, storedEntry] }));
+      }
       setBlocks([]);
       setEntryTitle("");
+      setEditingEntryId(null);
       if (!supabaseClient) {
-        const localTabs = tabs.map(tab => tab.id === activeTabId ? { ...tab, entries: [...tab.entries, storedEntry] } : tab);
+        const localTabs = tabs.map(tab => tab.id === activeTabId ? {
+          ...tab,
+          entries: editingEntryId
+            ? tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry)
+            : [...tab.entries, storedEntry],
+        } : tab);
         localStorage.setItem(DATA_KEY, JSON.stringify({ tabs: localTabs }));
       }
-      setNotice({ type: "success", message: "Avance guardado." });
+      if (mediaCleanupFailed) {
+        setNotice({ type: "error", message: "Los cambios se guardaron, pero no se pudieron limpiar algunos archivos multimedia anteriores." });
+      } else if (editingEntryId) {
+        setNotice({ type: "success", message: "Cambios guardados." });
+      } else if (!editingEntryId) {
+        setNotice({ type: "success", message: "Avance guardado." });
+      }
     } catch (error) {
+      if (uploadedPaths.length && supabaseClient) {
+        const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(uploadedPaths);
+        if (cleanupError) console.error("No se pudieron limpiar archivos multimedia tras fallar el guardado.", cleanupError);
+      }
       setNotice({ type: "error", message: `No se pudo guardar el avance: ${error.message}` });
     } finally { setSaving(false); }
+  }
+
+  function editEntry(entry) {
+    setEditingEntryId(entry.id);
+    setEntryTitle(entry.title);
+    setBlocks(entry.blocks.map(block => ({
+      ...block,
+      id: block.id || newId(),
+      file: null,
+      previewUrl: "",
+    })));
+    window.requestAnimationFrame(() => document.querySelector(".editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function cancelEditing() {
+    setBlocks([]);
+    setEntryTitle("");
+    setEditingEntryId(null);
   }
 
   async function deleteEntry(entry) {
@@ -416,7 +500,8 @@ export default function App({ page = "home" }) {
     blocks,
     saving,
     addBlock,
-    clear: () => { setBlocks([]); setEntryTitle(""); },
+    editing: Boolean(editingEntryId),
+    clear: cancelEditing,
     save: saveEntry,
     blockProps: { blocks, onChange: changeBlock, onRemove: removeBlock, onAddIdea: addIdea, onRemoveIdea: removeIdea, onImage: addImage, onVideo: addVideo },
   };
@@ -424,7 +509,7 @@ export default function App({ page = "home" }) {
   return (
     <>
       <SiteHeader page={page} authenticated={authenticated} onAuthClick={authenticated ? logout : showLogin} />
-      {page === "about" ? <AboutPage /> : page === "final-project" ? <FinalProjectPage /> : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry }} editor={editor} loading={loading} />}
+      {page === "about" ? <AboutPage /> : page === "final-project" ? <FinalProjectPage /> : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry }} editor={editor} loading={loading} />}
       <footer className="site-footer">FabLab I+D <span>/</span> Investigación, diseño y desarrollo</footer>
       {notice && <div className={`toast toast-${notice.type}`} role="status" aria-live="polite">{notice.message}</div>}
       <dialog className="auth-dialog" ref={dialogRef} onClose={() => setAuthError("")}>
@@ -442,4 +527,3 @@ export default function App({ page = "home" }) {
     </>
   );
 }
-
