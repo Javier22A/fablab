@@ -364,7 +364,6 @@ export default function App({ page = "home" }) {
   async function saveEntry() {
     const validBlocks = blocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.file || block.url : block.type === "video" ? block.file || block.url : block.ideas.length > 0);
     if (!validBlocks.length) { setNotice({ type: "error", message: "Añade al menos un bloque antes de guardar." }); return; }
-    setSaving(true);
     const existingEntry = editingEntryId
       ? tabs.flatMap(tab => tab.entries).find(entry => entry.id === editingEntryId)
       : null;
@@ -372,15 +371,17 @@ export default function App({ page = "home" }) {
       setNotice({ type: "error", message: "No se encontró el registro que intentas editar. Recarga la bitácora e inténtalo de nuevo." });
       return;
     }
+    setSaving(true);
     const entryId = editingEntryId || newId();
     const createdAt = existingEntry?.createdAt || new Date().toISOString();
+    const entryTabId = existingEntry?.tabId || activeTabId;
     let uploadedPaths = [];
     let mediaCleanupFailed = false;
     try {
       const uploadResult = await uploadBlocks(entryId, validBlocks);
       const preparedBlocks = uploadResult.blocks;
       uploadedPaths = uploadResult.uploadedPaths;
-      const payload = { tab_id: activeTabId, title: entryTitle.trim() || "Registro de actividad", blocks: preparedBlocks, created_at: createdAt };
+      const payload = { tab_id: entryTabId, title: entryTitle.trim() || "Registro de actividad", blocks: preparedBlocks, created_at: createdAt };
       let storedEntry;
       if (supabaseClient) {
         const query = editingEntryId
@@ -390,12 +391,12 @@ export default function App({ page = "home" }) {
         if (error) throw error;
         storedEntry = { id: data.id, tabId: data.tab_id, title: data.title, blocks: data.blocks, createdAt: data.created_at };
       } else {
-        storedEntry = { id: entryId, tabId: activeTabId, title: payload.title, blocks: preparedBlocks.map(block => ({ ...block, file: undefined })), createdAt };
+        storedEntry = { id: entryId, tabId: entryTabId, title: payload.title, blocks: preparedBlocks.map(block => ({ ...block, file: undefined })), createdAt };
       }
       if (editingEntryId) {
-        updateCurrentTab(tab => ({ ...tab, entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry) }));
+        setTabs(current => current.map(tab => ({ ...tab, entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry) })));
         const retainedPaths = new Set(preparedBlocks.map(block => block.storagePath).filter(Boolean));
-        const removedPaths = existingEntry.blocks.map(block => block.storagePath).filter(path => path && !retainedPaths.has(path));
+        const removedPaths = (existingEntry.blocks || []).map(block => block.storagePath).filter(path => path && !retainedPaths.has(path));
         if (removedPaths.length && supabaseClient) {
           const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(removedPaths);
           if (cleanupError) {
@@ -410,12 +411,10 @@ export default function App({ page = "home" }) {
       setEntryTitle("");
       setEditingEntryId(null);
       if (!supabaseClient) {
-        const localTabs = tabs.map(tab => tab.id === activeTabId ? {
+        const localTabs = tabs.map(tab => editingEntryId ? {
           ...tab,
-          entries: editingEntryId
-            ? tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry)
-            : [...tab.entries, storedEntry],
-        } : tab);
+          entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry),
+        } : tab.id === activeTabId ? { ...tab, entries: [...tab.entries, storedEntry] } : tab);
         localStorage.setItem(DATA_KEY, JSON.stringify({ tabs: localTabs }));
       }
       if (mediaCleanupFailed) {
