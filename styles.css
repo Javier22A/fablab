@@ -26,6 +26,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .entry-card { transition: transform .25s, box-shadow .25s; }
 .entry-card:hover { transform: translateY(-2px); box-shadow: 0 22px 62px rgba(36,72,91,.13); }
 .entry-delete:hover { text-decoration: underline; }
+.entry-actions { display: flex; align-items: center; gap: 1rem; margin-top: 1.2rem; }
+.entry-edit, .entry-delete { padding: .35rem 0; cursor: pointer; transition: color .18s ease, opacity .18s ease; }
+.entry-edit { color: var(--steel); background: transparent; border: 0; font-size: .7rem; }
+.entry-edit:hover { color: var(--blue); text-decoration: underline; }
+.entry-actions .entry-delete { margin-top: 0; }
+.entry-edit:focus-visible, .entry-delete:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .content-video figcaption { margin-top: .45rem; color: var(--muted); font: .65rem 'DM Mono', monospace; }
 .loading-copy { color: var(--muted); font-size: .75rem; line-height: 1.6; }
 
