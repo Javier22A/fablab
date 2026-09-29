@@ -417,7 +417,70 @@ async function deleteCurrentTab() {
   renderView();
 }
 
+function initLabelInput(root) {
+  const label = root.querySelector(".lbi-label");
+  const input = root.querySelector(".lbi-field");
+  const box = root.querySelector(".lbi-box");
+  const ring = root.querySelector(".lbi-ring");
+  if (!label || !input || !box || !ring) return;
+
+  const width = 280;
+  const height = 52;
+  const corner = 14;
+  const scale = 0.78;
+  const inset = 0.75;
+  const labelText = label.textContent;
+  label.replaceChildren(...Array.from(labelText, (character, index) => {
+    const span = document.createElement("span");
+    span.textContent = character;
+    span.style.setProperty("--i", index);
+    return span;
+  }));
+
+  const labelWidth = label.getBoundingClientRect().width;
+  const labelX = Math.max(14, corner + 4);
+  const startX = Math.max(corner * 0.6, labelX - 5);
+  const endX = labelX + labelWidth * scale + 5;
+  const arc = corner - inset;
+  const rightEdge = width - inset;
+  const bottom = height - inset;
+  const middle = width / 2;
+  const notchMiddle = (startX + endX) / 2;
+  const rightPath = `M${endX},${inset} L${width - corner},${inset} A${arc},${arc} 0 0 1 ${rightEdge},${corner} L${rightEdge},${height - corner} A${arc},${arc} 0 0 1 ${width - corner},${bottom} L${middle},${bottom}`;
+  const leftPath = `M${startX},${inset} L${corner},${inset} A${arc},${arc} 0 0 0 ${inset},${corner} L${inset},${height - corner} A${arc},${arc} 0 0 0 ${corner},${bottom} L${middle},${bottom}`;
+
+  box.style.setProperty("--lbi-x", `${labelX}px`);
+  ring.querySelector(".lbi-outline-right").setAttribute("d", rightPath);
+  ring.querySelector(".lbi-outline-left").setAttribute("d", leftPath);
+  ring.querySelector(".lbi-gap-left").setAttribute("d", `M${notchMiddle},${inset} L${startX},${inset}`);
+  ring.querySelector(".lbi-gap-right").setAttribute("d", `M${notchMiddle},${inset} L${endX},${inset}`);
+
+  const syncState = () => {
+    root.dataset.up = String(document.activeElement === input || input.value.length > 0);
+    root.dataset.filled = String(input.value.length > 0);
+  };
+  input.addEventListener("focus", () => { root.dataset.focus = "true"; syncState(); });
+  input.addEventListener("blur", () => { root.dataset.focus = "false"; syncState(); });
+  input.addEventListener("input", syncState);
+  syncState();
+
+  const eye = root.querySelector(".lbi-eye");
+  if (eye) {
+    eye.addEventListener("pointerdown", event => event.preventDefault());
+    eye.addEventListener("click", () => {
+      const showPassword = input.type === "password";
+      input.type = showPassword ? "text" : "password";
+      input.dataset.flip = String(Number(input.dataset.flip || 0) ^ 1);
+      eye.dataset.show = String(showPassword);
+      eye.setAttribute("aria-pressed", String(showPassword));
+      eye.setAttribute("aria-label", showPassword ? "Ocultar contraseña" : "Mostrar contraseña");
+      input.focus();
+    });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-label-input]").forEach(initLabelInput);
   document.getElementById("authModeHint").textContent = AUTH_MODE === "supabase" ? "Autenticación gestionada por Supabase." : "Modo demostración: cualquier correo válido y una contraseña de 8 caracteres.";
   document.getElementById("authBtn").addEventListener("click", toggleAuth);
   document.getElementById("authForm").addEventListener("submit", submitAuth);

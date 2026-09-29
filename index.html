@@ -80,10 +80,34 @@
       <button id="closeAuthBtn" class="dialog-close" type="button" aria-label="Cerrar">&times;</button>
       <span class="eyebrow">Área privada</span><h2>Entrar al laboratorio</h2>
       <p class="dialog-copy">Inicia sesión para habilitar la edición del proyecto.</p>
-      <label class="field-label" for="authEmail">Correo del equipo</label>
-      <input id="authEmail" class="form-control" type="email" autocomplete="email" placeholder="equipo@fablab.com" required>
-      <label class="field-label" for="authPassword">Contraseña</label>
-      <input id="authPassword" class="form-control" type="password" autocomplete="current-password" minlength="8" required>
+      <div class="lbi" data-label-input>
+        <div class="lbi-box">
+          <svg class="lbi-ring" width="280" height="52" viewBox="0 0 280 52" aria-hidden="true">
+            <path class="lbi-outline-right"></path>
+            <path class="lbi-outline-left"></path>
+            <path class="lbi-gap lbi-gap-left" pathLength="1"></path>
+            <path class="lbi-gap lbi-gap-right" pathLength="1"></path>
+          </svg>
+          <label class="lbi-label" for="authEmail">Correo del equipo</label>
+          <input id="authEmail" class="lbi-field" type="email" autocomplete="email" aria-label="Correo del equipo" required>
+        </div>
+      </div>
+      <div class="lbi" data-label-input>
+        <div class="lbi-box">
+          <svg class="lbi-ring" width="280" height="52" viewBox="0 0 280 52" aria-hidden="true">
+            <path class="lbi-outline-right"></path>
+            <path class="lbi-outline-left"></path>
+            <path class="lbi-gap lbi-gap-left" pathLength="1"></path>
+            <path class="lbi-gap lbi-gap-right" pathLength="1"></path>
+          </svg>
+          <label class="lbi-label" for="authPassword">Contraseña</label>
+          <input id="authPassword" class="lbi-field" type="password" autocomplete="current-password" minlength="8" aria-label="Contraseña" required>
+          <button class="lbi-eye" type="button" data-show="false" aria-label="Mostrar contraseña" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 5.2A11 11 0 0 1 12 5c6.4 0 10 7 10 7a15 15 0 0 1-3.1 4.1"></path><path d="M6.6 6.6C3.6 8.4 2 12 2 12s3.6 7 10 7a10 10 0 0 0 3.1-.5"></path></svg>
+          </button>
+        </div>
+      </div>
       <p id="authError" class="form-error" role="alert" hidden></p>
       <button class="button button-primary button-wide" type="submit">Continuar</button>
       <small id="authModeHint" class="demo-label">Conecta Supabase para utilizar cuentas reales.</small>

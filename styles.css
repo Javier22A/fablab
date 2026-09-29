@@ -28,6 +28,163 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .entry-delete:hover { text-decoration: underline; }
 .content-video figcaption { margin-top: .45rem; color: var(--muted); font: .65rem 'DM Mono', monospace; }
 
+/* ══ Label input ═══════════════════════════════════════════
+	 Adapted for the static FabLab login. Project tokens are
+	 mapped locally so the component does not add global theme
+	 variables. */
+.lbi {
+	--fill-on: var(--steel);
+	--font-ui: Manrope, sans-serif;
+	--ink-3: var(--muted);
+	--ink-4: rgba(104,119,131,.84);
+	--ink-rgb: 23,35,46;
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 100%;
+	padding-top: 10px;
+	font-family: var(--font-ui);
+}
+
+.lbi-box {
+	position: relative;
+	width: min(280px, 100%);
+	height: 52px;
+	border-radius: 14px;
+	background: transparent;
+	cursor: text;
+}
+
+.lbi-ring {
+	position: absolute;
+	inset: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.lbi-ring path {
+	fill: none;
+	stroke: rgba(var(--ink-rgb), .18);
+	stroke-width: 1;
+	stroke-linecap: butt;
+	transition: stroke 240ms ease, stroke-width 240ms ease;
+}
+
+.lbi[data-focus="true"] .lbi-ring path {
+	stroke: var(--ink);
+	stroke-width: 1.5;
+}
+
+.lbi[data-filled="true"]:not([data-focus="true"]) .lbi-ring path {
+	stroke: rgba(var(--ink-rgb), .3);
+}
+
+/* The outline is always whole. Focus changes its ink and opens
+	 the gap; the label moves and the line makes room for it. */
+.lbi-gap {
+	stroke-dasharray: 1 2;
+	stroke-dashoffset: 0;
+	transition: stroke 240ms ease, stroke-width 240ms ease,
+		stroke-dashoffset 320ms cubic-bezier(.22,1,.36,1);
+}
+
+.lbi[data-up="true"] .lbi-gap { stroke-dashoffset: -1; }
+
+/* The label rests inside the field, then lifts to the top edge
+	 and scales from its left when focused or filled. */
+.lbi-label {
+	position: absolute;
+	z-index: 1;
+	left: var(--lbi-x, 18px);
+	top: 50%;
+	color: var(--ink-4);
+	font-size: 15px;
+	line-height: 1;
+	letter-spacing: 0;
+	white-space: pre;
+	transform: translateY(-50%);
+	transform-origin: left center;
+	transition: transform 420ms cubic-bezier(.22,1,.36,1), color 200ms ease;
+	cursor: text;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.lbi-label span { display: inline-block; }
+.lbi[data-up="true"] .lbi-label {
+	color: var(--ink-3);
+	transform: translateY(-50%) translateY(-26px) scale(.78);
+}
+.lbi[data-focus="true"] .lbi-label { color: var(--fill-on, var(--ink)); }
+
+/* The label hops a little letter by letter as it rises. */
+.lbi[data-focus="true"] .lbi-label span {
+	animation: lbi-hop 460ms cubic-bezier(.3,.7,.3,1) both;
+	animation-delay: calc(var(--i) * 24ms);
+}
+
+.lbi-field {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	padding: 0 18px;
+	color: var(--fill-on, var(--ink));
+	background: transparent;
+	border: 0;
+	border-radius: inherit;
+	outline: none;
+	font: inherit;
+	font-size: 15px;
+	letter-spacing: 0;
+}
+
+.lbi-field:focus-visible { outline: none; box-shadow: none; }
+.lbi-field[type="password"] { padding-right: 48px; }
+
+/* The text blurs briefly instead of snapping when the password
+	 changes between dots and letters. */
+.lbi-field[data-flip="1"] { animation: lbi-flip-a 260ms ease-out; }
+.lbi-field[data-flip="0"] { animation: lbi-flip-b 260ms ease-out; }
+
+.lbi-eye {
+	position: absolute;
+	z-index: 2;
+	top: 50%;
+	right: 8px;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	margin-top: -15px;
+	padding: 0;
+	color: var(--ink-4);
+	background: transparent;
+	border: 0;
+	border-radius: 999px;
+	cursor: pointer;
+	transition: color 160ms ease, scale 130ms cubic-bezier(.3,.9,.4,1);
+}
+.lbi-eye:hover { color: var(--fill-on, var(--ink)); }
+.lbi-eye:active { scale: .9; }
+.lbi-eye svg { grid-area: 1 / 1; transition: opacity 200ms ease, scale 260ms cubic-bezier(.22,1,.36,1), filter 200ms ease; }
+.lbi-eye svg:last-child { opacity: 0; scale: .7; filter: blur(2px); }
+.lbi-eye[data-show="true"] svg:first-child { opacity: 0; scale: .7; filter: blur(2px); }
+.lbi-eye[data-show="true"] svg:last-child { opacity: 1; scale: 1; filter: none; }
+
+@keyframes lbi-hop {
+	0% { transform: translateY(0); }
+	38% { transform: translateY(-3px); }
+	100% { transform: translateY(0); }
+}
+@keyframes lbi-flip-a { from { filter: blur(3px); opacity: .5; } }
+@keyframes lbi-flip-b { from { filter: blur(3px); opacity: .5; } }
+
+@media (prefers-reduced-motion: reduce) {
+	.lbi-ring path, .lbi-gap, .lbi-label { transition-duration: 1ms; }
+	.lbi[data-focus="true"] .lbi-label span, .lbi-field { animation: none; }
+}
+
 .global-nav { display: flex; align-items: center; justify-content: center; gap: clamp(1rem, 3vw, 3rem); margin-left: auto; }
 .content-video video { display: block; width: min(100%, 760px); max-height: 520px; background: #102530; }
 .institution-logos { display: flex; align-items: center; gap: .4rem; }
