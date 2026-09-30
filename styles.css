@@ -32,6 +32,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .entry-edit:hover { color: var(--blue); text-decoration: underline; }
 .entry-actions .entry-delete { margin-top: 0; }
 .entry-edit:focus-visible, .entry-delete:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.fuse-button.fuse-delete-button { width: max-content; max-width: 100%; box-shadow: inset 0 0 0 1px rgba(163,76,76,.25); }
+.fuse-button.fuse-delete-button-wide { display: grid; width: 100%; }
+.fuse-delete-fallback { width: 100%; }
+.delete-progress { color: var(--danger); font-size: .72rem; font-weight: 700; }
 .content-video figcaption { margin-top: .45rem; color: var(--muted); font: .65rem 'DM Mono', monospace; }
 .loading-copy { color: var(--muted); font-size: .75rem; line-height: 1.6; }
 
@@ -289,3 +293,32 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .entry-order-actions p { color: var(--steel); font-size: .75rem; }
 .entry-actions button:disabled { cursor: not-allowed; opacity: .5; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.hero-panel { isolation: isolate; }
+.hero-slats-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: .32;
+  pointer-events: none;
+}
+.hero-slats-background .micro-slats { position: absolute; inset: 0; }
+.hero-content { position: relative; z-index: 1; }
+
+.tech-heading { position: relative; display: block; width: 100%; }
+.tech-heading-canvas { height: clamp(5rem, 9vw, 7.5rem); }
+.tech-heading .tech-text.tech-heading-canvas { height: clamp(5rem, 9vw, 7.5rem); }
+.hero-panel h2.tech-heading { height: clamp(4.25rem, 8vw, 6rem); }
+.hero-panel h2.tech-heading .tech-text.tech-heading-canvas { height: clamp(4.25rem, 8vw, 6rem); }
+.tech-heading-fallback { display: block; min-height: clamp(5rem, 9vw, 7.5rem); }
+.hero-panel h2 .tech-heading-fallback { min-height: clamp(4.25rem, 8vw, 6rem); }
+
+@media (max-width: 640px) {
+  .tech-heading .tech-text.tech-heading-canvas { height: auto; }
+  .tech-heading-canvas .tech-text-canvas { display: none; }
+  .tech-heading-canvas .tech-text-fallback { position: static; display: block; }
+  .hero-panel h2.tech-heading { height: auto; }
+  .hero-panel h2.tech-heading .tech-text.tech-heading-canvas { height: auto; }
+  .tech-heading-fallback,
+  .hero-panel h2 .tech-heading-fallback { min-height: 0; }
+}

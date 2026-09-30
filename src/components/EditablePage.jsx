@@ -3,6 +3,7 @@ import { supabaseClient } from "../lib/supabase.js";
 import { BASE_URL, publicAsset } from "../lib/paths.js";
 import RichTextEditor, { RichTextDisplay } from "./RichTextEditor.jsx";
 import { sanitizeRichText } from "../lib/richText.js";
+import AnimatedHeading from "./AnimatedHeading.jsx";
 
 const TEAM = ["Javier Abad", "Steven Giron", "Francisco Siguenza", "Juan Pablo Quinteros"];
 const PAGE_DEFAULTS = {
@@ -325,7 +326,7 @@ export default function EditablePage({ page, authenticated }) {
             <div className="photo-caption"><span className="eyebrow">El equipo</span><RichTextDisplay as="strong" value={content.caption} inlineOnly /><RichTextDisplay as="small" value={content.photoNote} inlineOnly /></div>
           </section>
           <section className="about-copy">
-            <span className="eyebrow">{content.eyebrow}</span><RichTextDisplay as="h1" value={content.title} inlineOnly /><RichTextDisplay as="div" className="lead rich-display" value={content.lead} />
+            <span className="eyebrow">{content.eyebrow}</span><AnimatedHeading as="h1" className="page-title" text={content.title} /><RichTextDisplay as="div" className="lead rich-display" value={content.lead} />
             <div className="role-list">{content.sections.map((section, index) => (
               <article className="role-item" key={section.id || `${section.title}-${index}`}>
                 <span>{section.eyebrow || String(index + 1).padStart(2, "0")}</span>
@@ -345,7 +346,7 @@ export default function EditablePage({ page, authenticated }) {
   return (
     <>
       <main className="inner-page project-page">
-        <section className="project-hero"><span className="eyebrow">{content.eyebrow}</span><RichTextDisplay as="h1" value={content.title} inlineOnly /><RichTextDisplay as="div" className="project-lead rich-display" value={content.lead} />{content.linkLabel && safeLink(content.linkUrl || `${BASE_URL}index.html`) && <a className="button button-primary" href={safeLink(content.linkUrl || `${BASE_URL}index.html`)}>{content.linkLabel}</a>}</section>
+        <section className="project-hero"><span className="eyebrow">{content.eyebrow}</span><AnimatedHeading as="h1" className="page-title" text={content.title} /><RichTextDisplay as="div" className="project-lead rich-display" value={content.lead} />{content.linkLabel && safeLink(content.linkUrl || `${BASE_URL}index.html`) && <a className="button button-primary" href={safeLink(content.linkUrl || `${BASE_URL}index.html`)}>{content.linkLabel}</a>}</section>
         <section className="project-grid">{content.sections.map((section, index) => (
           <article className={`project-card ${section.wide ? "project-card-wide" : ""}`} key={section.id || `${section.title}-${index}`}>
             <span className="eyebrow">{section.eyebrow}</span><RichTextDisplay as="h2" value={section.title} inlineOnly /><RichTextDisplay as="div" className="project-description rich-display" value={section.description} />{section.image?.url && <img className="page-section-image" src={section.image.url} alt={section.image.alt || section.title} />}

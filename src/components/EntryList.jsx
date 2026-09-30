@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { useState } from "react";
 import { sanitizeRichText } from "../lib/richText.js";
+import DeleteFuseButton from "./DeleteFuseButton.jsx";
 
 function SortableEntry({ entry, authenticated, entries, children }) {
   const {
@@ -14,7 +15,7 @@ function SortableEntry({ entry, authenticated, entries, children }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: entry.id, disabled: !authenticated || entries.orderSaving });
+  } = useSortable({ id: entry.id, disabled: !authenticated || entries.orderSaving || entries.deletionInProgress });
 
   return (
     <article
@@ -31,7 +32,7 @@ function SortableEntry({ entry, authenticated, entries, children }) {
           ref={setActivatorNodeRef}
           aria-label={`Mover publicación: ${entry.title}`}
           title="Arrastra para reordenar publicaciones; usa las flechas del teclado"
-          disabled={entries.orderSaving}
+          disabled={entries.orderSaving || entries.deletionInProgress}
         >
           <GripVertical size={18} aria-hidden="true" />
         </button>
@@ -87,7 +88,9 @@ export default function EntryList({ entries, authenticated }) {
               {authenticated && (
                 <div className="entry-actions">
                   <button className="entry-edit" type="button" onClick={() => entries.edit(entry)}>Editar</button>
-                  <button className="entry-delete" type="button" disabled={entries.orderDirty || entries.orderSaving} onClick={() => entries.delete(entry)}>Eliminar registro</button>
+                  {entries.deletingEntryId === entry.id
+                    ? <span className="delete-progress" role="status">Eliminando registro…</span>
+                    : <DeleteFuseButton label="Eliminar registro" disabled={entries.orderDirty || entries.orderSaving || entries.deletionInProgress} onCommit={() => { void entries.delete(entry); }} />}
                 </div>
               )}
             </SortableEntry>
@@ -97,7 +100,7 @@ export default function EntryList({ entries, authenticated }) {
       {authenticated && entries.orderDirty && (
         <div className="entry-order-actions">
           <p>El nuevo orden aún no está guardado.</p>
-          <button className="button button-primary" type="button" disabled={entries.orderSaving} onClick={entries.saveOrder}>
+          <button className="button button-primary" type="button" disabled={entries.orderSaving || entries.deletionInProgress} onClick={entries.saveOrder}>
             {entries.orderSaving ? "Guardando orden…" : "Guardar orden de publicaciones"}
           </button>
         </div>
