@@ -1,5 +1,5 @@
 const INLINE_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "S", "SPAN", "BR", "FONT"]);
-const BLOCK_TAGS = new Set(["P", "DIV", "UL", "OL", "LI", "BLOCKQUOTE"]);
+const BLOCK_TAGS = new Set(["P", "DIV", "UL", "OL", "LI", "BLOCKQUOTE", "H3", "H4"]);
 const FONT_FAMILIES = new Map([
   ["arial", "Arial"],
   ["georgia", "Georgia"],

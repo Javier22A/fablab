@@ -2,6 +2,7 @@ import { useSensor, useSensors, DndContext, KeyboardSensor, PointerSensor, close
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import RichTextEditor from "./RichTextEditor.jsx";
 
 function BlockHeader({ index, label, onRemove, disabled, dragHandleProps }) {
   return (
@@ -124,7 +125,11 @@ export default function BlockEditor({ blocks, onChange, onRemove, onReorder, onA
 
             return (
               <SortableBlock key={block.id} block={block} index={index} label="Párrafo" className="block-text" onRemove={() => onRemove(index)} disabled={disabled}>
-                <textarea className="block-textarea" value={block.content} onChange={event => update({ content: event.target.value })} placeholder="Describe qué ocurrió, qué observaste y qué aprendiste..." aria-label="Contenido del párrafo" />
+                <RichTextEditor
+                  label="Contenido del párrafo"
+                  value={block.content}
+                  onChange={content => update({ content })}
+                />
               </SortableBlock>
             );
           })}

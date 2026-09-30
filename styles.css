@@ -232,6 +232,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .rich-select-label select { min-height: 1.8rem; padding: 0 .35rem; color: var(--ink); font-size: .68rem; }
 .rich-color-label { padding: .15rem .35rem; cursor: pointer; }
 .rich-color-label input { width: 1.5rem; height: 1.5rem; padding: 0; background: transparent; border: 0; cursor: pointer; }
+.rich-tool-active { color: #fff; background: var(--steel); }
+.rich-hint { display: block; margin: -.1rem 0 .35rem; color: var(--muted); font-size: .64rem; }
 .rich-editable { min-height: 110px; padding: .72rem .8rem; color: var(--ink); background: rgba(255,255,255,.75); border: 1px solid var(--line); border-radius: .35rem; outline: 0; line-height: 1.6; overflow-wrap: anywhere; }
 .rich-editable:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(76,135,168,.12); }
 .rich-editable-single-line { min-height: 2.7rem; }

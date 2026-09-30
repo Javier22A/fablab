@@ -3,6 +3,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { useState } from "react";
+import { sanitizeRichText } from "../lib/richText.js";
 
 function SortableEntry({ entry, authenticated, entries, children }) {
   const {
@@ -130,7 +131,7 @@ function EntryBlocks({ blocks }) {
         </section>
       );
     }
-    return <div className="content-text" key={block.id || index} dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(block.content || "") }} />;
+    return <div className="content-text" key={block.id || index} dangerouslySetInnerHTML={{ __html: sanitizeRichText(block.content || "") }} />;
   });
 }
 
@@ -142,18 +143,4 @@ function mediaUrl(value) {
   } catch {
     return "";
   }
-}
-
-function sanitizeLegacyHtml(html) {
-  const parser = new DOMParser();
-  const documentFragment = parser.parseFromString(html, "text/html");
-  const allowed = new Set(["B", "STRONG", "I", "EM", "U", "S", "P", "BR", "UL", "OL", "LI", "H3", "H4", "BLOCKQUOTE"]);
-  documentFragment.body.querySelectorAll("*").forEach(element => {
-    if (!allowed.has(element.tagName)) {
-      element.replaceWith(...element.childNodes);
-      return;
-    }
-    [...element.attributes].forEach(attribute => element.removeAttribute(attribute.name));
-  });
-  return documentFragment.body.innerHTML;
 }

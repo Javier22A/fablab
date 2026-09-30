@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { supabaseClient } from "./lib/supabase.js";
 import { BASE_URL } from "./lib/paths.js";
+import { sanitizeRichText } from "./lib/richText.js";
 import LabelInput from "./components/LabelInput.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
 
@@ -78,7 +79,7 @@ function blockForStorage(block, uploadedMedia) {
   if (block.type === "image" || block.type === "video") {
     return { id: block.id, type: block.type, fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: uploadedMedia?.storagePath || block.storagePath || null, url: uploadedMedia?.url || block.url || null };
   }
-  if (block.type === "text") return { id: block.id, type: "text", content: block.content };
+  if (block.type === "text") return { id: block.id, type: "text", content: sanitizeRichText(block.content) };
   return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
 }
 
