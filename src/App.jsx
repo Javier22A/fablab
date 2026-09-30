@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { supabaseClient } from "./lib/supabase.js";
-import { BASE_URL, publicAsset } from "./lib/paths.js";
+import { BASE_URL } from "./lib/paths.js";
 import LabelInput from "./components/LabelInput.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
 
 const BlockEditor = lazy(() => import("./components/BlockEditor.jsx"));
 const EntryList = lazy(() => import("./components/EntryList.jsx"));
+const EditablePage = lazy(() => import("./components/EditablePage.jsx"));
 
 const DATA_KEY = "proyecto_id_data";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -81,7 +82,7 @@ function blockForStorage(block, uploadedMedia) {
   return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
 }
 
-function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading }) {
+function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading, teamMembers }) {
   const currentTab = tabs.find(tab => tab.id === activeTabId);
   const allEntries = tabs.reduce((count, tab) => count + tab.entries.length, 0);
   return (
@@ -96,7 +97,7 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
         <div className="sidebar-note"><span className="note-dot" /><p>Un buen prototipo también deja registro de lo que no funcionó.</p></div>
       </aside>
       <main className="main-content">
-        {loading ? <div className="public-empty animate-in" role="status"><span className="empty-icon">◌</span><h3>Cargando la bitácora</h3><p>Conectando con Supabase para traer semanas y registros.</p></div> : activeTabId === "portada" ? <HomeLanding weekCount={tabs.length - 1} entryCount={allEntries} /> : (
+        {loading ? <div className="public-empty animate-in" role="status"><span className="empty-icon">◌</span><h3>Cargando la bitácora</h3><p>Conectando con Supabase para traer semanas y registros.</p></div> : activeTabId === "portada" ? <HomeLanding weekCount={tabs.length - 1} entryCount={allEntries} teamMembers={teamMembers} /> : (
           <>
             <div className="page-heading animate-in"><span className="eyebrow">Registro semanal</span><h2>{currentTab?.title || "Semana"}</h2><span className="heading-line" /></div>
             <Suspense fallback={<p className="drop-hint" role="status">Cargando publicaciones…</p>}>
@@ -120,11 +121,11 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
   );
 }
 
-function HomeLanding({ weekCount, entryCount }) {
+function HomeLanding({ weekCount, entryCount, teamMembers }) {
   return (
     <>
       <section className="hero-panel animate-in"><span className="eyebrow">Investigación y desarrollo / 2026</span><h2>Del problema al prototipo.</h2><p>Una bitácora abierta sobre decisiones, pruebas y aprendizajes detrás de un producto nuevo.</p><div className="hero-stats"><span><strong>{weekCount}</strong> semanas documentadas</span><span><strong>{entryCount}</strong> registros publicados</span></div></section>
-      <section className="intro-grid animate-in"><div className="section-heading"><span className="eyebrow">Equipo de trabajo</span><h3>Cuatro miradas, un objetivo.</h3></div><div className="team-list">{TEAM.map((name, index) => <div className="team-member" key={name}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><small>Investigación / Desarrollo</small></div>)}</div></section>
+      <section className="intro-grid animate-in"><div className="section-heading"><span className="eyebrow">Equipo de trabajo</span><h3>Cuatro miradas, un objetivo.</h3></div><div className="team-list">{teamMembers.map((name, index) => <div className="team-member" key={`${name}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><small>Investigación / Desarrollo</small></div>)}</div></section>
     </>
   );
 }
@@ -143,16 +144,9 @@ function EditorPanel({ tabTitle, editor }) {
   );
 }
 
-function AboutPage() {
-  return <main className="inner-page about-layout"><section className="team-photo-card" aria-label="Imagen del equipo"><div className="team-photo-frame"><img src={publicAsset("images/logofablab.jpg")} alt="Logo FabLab, imagen provisional del equipo" /></div><div className="photo-caption"><span className="eyebrow">El equipo</span><strong>Aquí irá la fotografía del equipo.</strong><small>Este espacio queda reservado para la imagen vertical de los integrantes.</small></div></section><section className="about-copy"><span className="eyebrow">Información general / FabLab I+D</span><h1>Sobre<br />nosotros.</h1><p className="lead">Aquí irá una descripción general del equipo, sus objetivos y el contexto de la materia.</p><div className="role-list"><article className="role-item"><span>01</span><div><h2>Quiénes somos</h2><p>Aquí irá una presentación breve de los integrantes y sus responsabilidades.</p></div></article><article className="role-item"><span>02</span><div><h2>Qué hacemos</h2><p>Aquí irá una explicación general del trabajo de investigación y desarrollo.</p></div></article><article className="role-item"><span>03</span><div><h2>Cómo trabajamos</h2><p>Aquí irá una descripción del proceso, las herramientas y la forma de documentar los avances.</p></div></article></div><div className="team-names">{TEAM.map(name => <span key={name}>{name}</span>)}</div></section></main>;
-}
-
-function FinalProjectPage() {
-  return <main className="inner-page project-page"><section className="project-hero"><span className="eyebrow">Proyecto final / I+D</span><h1>Aquí irá la información<br />del proyecto final.</h1><p>Aquí irá una descripción general del producto, la propuesta desarrollada y los resultados principales.</p><a className="button button-primary" href={`${BASE_URL}index.html`}>Ver la bitácora semanal</a></section><section className="project-grid"><article className="project-card project-card-wide"><span className="eyebrow">01 / El problema</span><h2>Aquí irá el problema identificado.</h2><p>En este espacio se explicará la necesidad o situación que dio origen al proyecto.</p></article><article className="project-card"><span className="eyebrow">02 / El proceso</span><h2>Aquí irá la metodología.</h2><p>En este espacio se resumirán las etapas de investigación, ideación y validación.</p></article><article className="project-card"><span className="eyebrow">03 / El resultado</span><h2>Aquí irá la propuesta final.</h2><p>En este espacio se presentarán las características y conclusiones principales.</p></article></section></main>;
-}
-
 export default function App({ page = "home" }) {
   const [tabs, setTabs] = useState(() => supabaseClient ? [] : readLegacyData().tabs);
+  const [teamMembers, setTeamMembers] = useState(TEAM);
   const [activeTabId, setActiveTabId] = useState("portada");
   const [session, setSession] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -174,11 +168,6 @@ export default function App({ page = "home" }) {
     let mounted = true;
     let authSubscription;
 
-    if (page !== "home") {
-      setLoading(false);
-      return () => { mounted = false; };
-    }
-
     async function loadRemoteData() {
       if (!supabaseClient) {
         const saved = readLegacyData();
@@ -186,9 +175,10 @@ export default function App({ page = "home" }) {
         return;
       }
 
-      const [tabsResult, entriesResult] = await Promise.all([
+      const [tabsResult, entriesResult, aboutResult] = await Promise.all([
         supabaseClient.from("tabs").select("id, title, is_deletable, sort_order").order("sort_order", { ascending: true }),
         supabaseClient.from("entries").select("id, tab_id, title, blocks, created_at, sort_order").order("tab_id", { ascending: true }).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
+        supabaseClient.from("site_pages").select("content").eq("slug", "about").maybeSingle(),
       ]);
       if (!mounted) return;
       if (tabsResult.error || entriesResult.error) {
@@ -200,10 +190,17 @@ export default function App({ page = "home" }) {
 
       const entries = entriesResult.data.map((entry, index) => ({ id: entry.id, tabId: entry.tab_id, title: entry.title, blocks: Array.isArray(entry.blocks) ? entry.blocks : [], createdAt: entry.created_at, sortOrder: entry.sort_order ?? index }));
       setTabs(tabsResult.data.map(tab => ({ id: tab.id, title: tab.title, isDeletable: tab.is_deletable, entries: entries.filter(entry => entry.tabId === tab.id) })));
+      if (aboutResult.error) {
+        console.error("No se pudieron cargar los nombres del equipo desde About.", aboutResult.error);
+        setNotice({ type: "error", message: "No se pudieron cargar los nombres del equipo desde About." });
+      } else if (Array.isArray(aboutResult.data?.content?.teamNames)) {
+        setTeamMembers(aboutResult.data.content.teamNames.filter(name => typeof name === "string" && name.trim()));
+      }
       setLoading(false);
     }
 
-    loadRemoteData();
+    if (page === "home") loadRemoteData();
+    else setLoading(false);
     if (supabaseClient) {
       supabaseClient.auth.getSession().then(({ data }) => { if (mounted) setSession(data.session); });
       const { data } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
@@ -503,7 +500,11 @@ export default function App({ page = "home" }) {
   return (
     <>
       <SiteHeader page={page} authenticated={authenticated} onAuthClick={authenticated ? logout : showLogin} />
-      {page === "about" ? <AboutPage /> : page === "final-project" ? <FinalProjectPage /> : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder }} editor={editor} loading={loading} />}
+      {page === "about" || page === "final-project" ? (
+        <Suspense fallback={<main className="inner-page" role="status">Cargando contenido…</main>}>
+          <EditablePage page={page} authenticated={authenticated} />
+        </Suspense>
+      ) : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder }} editor={editor} loading={loading} teamMembers={teamMembers} />}
       <footer className="site-footer">FabLab I+D <span>/</span> Investigación, diseño y desarrollo</footer>
       {notice && <div className={`toast toast-${notice.type}`} role="status" aria-live="polite">{notice.message}</div>}
       <dialog className="auth-dialog" ref={dialogRef} onClose={() => setAuthError("")}>
