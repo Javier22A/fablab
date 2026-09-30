@@ -27,14 +27,12 @@ export default function SiteHeader({ page, authenticated, onAuthClick }) {
           <a className={`page-link ${page === "final-project" ? "active" : ""}`} href={`${BASE_URL}final-project.html`}>Final Project</a>
         </div>
       </nav>
-      {page === "home" && (
-        <div className="header-actions">
-          {authenticated && <span className="status-badge">Edición activa</span>}
-          <button className="button button-primary" type="button" onClick={onAuthClick}>
-            {authenticated ? "Cerrar sesión" : "Soy del equipo :)"}
-          </button>
-        </div>
-      )}
+      <div className="header-actions">
+        {authenticated && <span className="status-badge">Edición activa</span>}
+        <button className="button button-primary" type="button" onClick={onAuthClick}>
+          {authenticated ? "Cerrar sesión" : "Soy del equipo :)"}
+        </button>
+      </div>
     </header>
   );
 }

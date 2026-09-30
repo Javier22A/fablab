@@ -125,6 +125,38 @@ using (true);
 create index if not exists entries_tab_order_idx
 on public.entries (tab_id, sort_order, created_at);
 
+create table if not exists public.site_pages (
+  slug text primary key check (slug in ('about', 'final-project')),
+  content jsonb not null default '{}'::jsonb check (jsonb_typeof(content) = 'object'),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+alter table public.site_pages enable row level security;
+
+drop policy if exists "Public can read site pages" on public.site_pages;
+drop policy if exists "Authenticated users can create site pages" on public.site_pages;
+drop policy if exists "Authenticated users can update site pages" on public.site_pages;
+
+create policy "Public can read site pages"
+on public.site_pages for select
+to anon, authenticated
+using (true);
+
+create policy "Authenticated users can create site pages"
+on public.site_pages for insert
+to authenticated
+with check (auth.uid() = updated_by);
+
+create policy "Authenticated users can update site pages"
+on public.site_pages for update
+to authenticated
+using (auth.uid() is not null)
+with check (auth.uid() = updated_by);
+
+grant select on public.site_pages to anon, authenticated;
+grant insert, update on public.site_pages to authenticated;
+
 insert into storage.buckets (id, name, public)
 values ('project-media', 'project-media', true)
 on conflict (id) do nothing;
