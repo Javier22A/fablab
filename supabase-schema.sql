@@ -31,18 +31,18 @@ using (true);
 create policy "Authenticated users can create tabs"
 on public.tabs for insert
 to authenticated
-with check (true);
+with check (id <> 'portada');
 
 create policy "Authenticated users can update tabs"
 on public.tabs for update
 to authenticated
-using (true)
-with check (true);
+using (id <> 'portada')
+with check (id <> 'portada');
 
 create policy "Authenticated users can delete tabs"
 on public.tabs for delete
 to authenticated
-using (is_deletable = true);
+using (is_deletable = true and id <> 'portada');
 
 insert into public.tabs (id, title, is_deletable, sort_order)
 values
