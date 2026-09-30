@@ -442,14 +442,25 @@ export default function App({ page = "home" }) {
 
   async function deleteEntry(entry) {
     if (!window.confirm("¿Eliminar este registro y sus archivos multimedia?")) return;
+    let mediaCleanupError = "";
     if (supabaseClient) {
       const { error } = await supabaseClient.from("entries").delete().eq("id", entry.id);
       if (error) { setNotice({ type: "error", message: "No se pudo eliminar el registro." }); return; }
       const paths = entry.blocks.map(block => block.storagePath).filter(Boolean);
-      if (paths.length) await supabaseClient.storage.from("project-media").remove(paths);
+      if (paths.length) {
+        try {
+          const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
+          if (cleanupError) throw cleanupError;
+        } catch (error) {
+          console.error("Se eliminó el registro, pero no se pudieron limpiar algunos archivos multimedia.", error);
+          mediaCleanupError = error.message || "Error desconocido de Storage.";
+        }
+      }
     }
     updateCurrentTab(tab => ({ ...tab, entries: tab.entries.filter(item => item.id !== entry.id) }));
-    setNotice({ type: "success", message: "Registro eliminado." });
+    setNotice(mediaCleanupError
+      ? { type: "error", message: `Registro eliminado, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
+      : { type: "success", message: "Registro eliminado." });
   }
 
   async function createTab() {
@@ -467,18 +478,35 @@ export default function App({ page = "home" }) {
   async function deleteTab() {
     const tab = tabs.find(item => item.id === activeTabId);
     if (!tab?.isDeletable || !window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return;
+    let mediaCleanupError = "";
     if (supabaseClient) {
       const { data: rows, error: readError } = await supabaseClient.from("entries").select("blocks").eq("tab_id", activeTabId);
       if (readError) { setNotice({ type: "error", message: "No se pudieron consultar los archivos de la semana." }); return; }
       const paths = (rows || []).flatMap(row => row.blocks.map(block => block.storagePath).filter(Boolean));
       const { error: entriesError } = await supabaseClient.from("entries").delete().eq("tab_id", activeTabId);
       if (entriesError) { setNotice({ type: "error", message: "No se pudieron eliminar los registros de la semana." }); return; }
-      if (paths.length) await supabaseClient.storage.from("project-media").remove(paths);
+      if (paths.length) {
+        try {
+          const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
+          if (cleanupError) throw cleanupError;
+        } catch (error) {
+          console.error("Se eliminaron los registros, pero no se pudieron limpiar algunos archivos multimedia.", error);
+          mediaCleanupError = error.message || "Error desconocido de Storage.";
+        }
+      }
       const { error: tabError } = await supabaseClient.from("tabs").delete().eq("id", activeTabId);
-      if (tabError) { setNotice({ type: "error", message: "No se pudo eliminar la semana." }); return; }
+      if (tabError) {
+        setNotice({ type: "error", message: mediaCleanupError
+          ? `No se pudo eliminar la semana; además, falló la limpieza de archivos: ${mediaCleanupError}`
+          : "No se pudo eliminar la semana." });
+        return;
+      }
     }
     setTabs(current => current.filter(item => item.id !== activeTabId));
     setActiveTabId("portada");
+    setNotice(mediaCleanupError
+      ? { type: "error", message: `Semana eliminada, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
+      : { type: "success", message: "Semana eliminada." });
   }
 
   const dialogRef = authDialogRef;
