@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { supabaseClient } from "./lib/supabase.js";
 import { BASE_URL, publicAsset } from "./lib/paths.js";
-import BlockEditor from "./components/BlockEditor.jsx";
 import LabelInput from "./components/LabelInput.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
+
+const BlockEditor = lazy(() => import("./components/BlockEditor.jsx"));
+const EntryList = lazy(() => import("./components/EntryList.jsx"));
 
 const DATA_KEY = "proyecto_id_data";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -34,30 +36,6 @@ function readLegacyData() {
     return { tabs: stored.tabs.map(tab => ({ ...tab, entries: (tab.entries || []).map(normalizeEntry) })) };
   } catch {
     return { tabs: DEFAULT_TABS };
-  }
-}
-
-function sanitizeLegacyHtml(html) {
-  const parser = new DOMParser();
-  const documentFragment = parser.parseFromString(html, "text/html");
-  const allowed = new Set(["B", "STRONG", "I", "EM", "U", "S", "P", "BR", "UL", "OL", "LI", "H3", "H4", "BLOCKQUOTE"]);
-  documentFragment.body.querySelectorAll("*").forEach(element => {
-    if (!allowed.has(element.tagName)) {
-      element.replaceWith(...element.childNodes);
-      return;
-    }
-    [...element.attributes].forEach(attribute => element.removeAttribute(attribute.name));
-  });
-  return documentFragment.body.innerHTML;
-}
-
-function mediaUrl(value) {
-  if (!value) return "";
-  try {
-    const parsed = new URL(value, window.location.href);
-    return ["https:", "http:", "blob:", "data:"].includes(parsed.protocol) ? value : "";
-  } catch {
-    return "";
   }
 }
 
@@ -97,38 +75,10 @@ function convertImage(file) {
 
 function blockForStorage(block, uploadedMedia) {
   if (block.type === "image" || block.type === "video") {
-    return { type: block.type, fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: uploadedMedia?.storagePath || block.storagePath || null, url: uploadedMedia?.url || block.url || null };
+    return { id: block.id, type: block.type, fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: uploadedMedia?.storagePath || block.storagePath || null, url: uploadedMedia?.url || block.url || null };
   }
-  if (block.type === "text") return { type: "text", content: block.content };
-  return { type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
-}
-
-function EntryBlocks({ blocks }) {
-  return blocks.map((block, index) => {
-    if (block.type === "image") {
-      const source = mediaUrl(block.url || block.dataUrl);
-      return source ? <figure className="content-image" key={block.id || index}><img src={source} alt={block.alt || "Evidencia visual"} /><figcaption>{block.fileName || "Evidencia visual"}</figcaption></figure> : null;
-    }
-    if (block.type === "video") {
-      const source = mediaUrl(block.url || block.previewUrl);
-      return source ? <figure className="content-video" key={block.id || index}><video controls preload="metadata" src={source} /><figcaption>{block.fileName || "Video de evidencia"}</figcaption></figure> : null;
-    }
-    if (block.type === "comparison") {
-      return (
-        <section className="content-comparison" key={block.id || index}>
-          <div className="comparison-heading"><span className="block-kicker">Matriz de decisión</span><h4>{block.title}</h4></div>
-          <div className="comparison-grid">{(block.ideas || []).map((idea, ideaIndex) => (
-            <div className="comparison-card" key={`${block.id || index}-${ideaIndex}`}>
-              <h5>{idea.title}</h5><p>{idea.description}</p>
-              <div className="comparison-pro"><b>A favor</b>{idea.pros}</div>
-              <div className="comparison-con"><b>Riesgos</b>{idea.cons}</div>
-            </div>
-          ))}</div>
-        </section>
-      );
-    }
-    return <div className="content-text" key={block.id || index} dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(block.content || "") }} />;
-  });
+  if (block.type === "text") return { id: block.id, type: "text", content: block.content };
+  return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
 }
 
 function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading }) {
@@ -149,18 +99,19 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
         {loading ? <div className="public-empty animate-in" role="status"><span className="empty-icon">◌</span><h3>Cargando la bitácora</h3><p>Conectando con Supabase para traer semanas y registros.</p></div> : activeTabId === "portada" ? <HomeLanding weekCount={tabs.length - 1} entryCount={allEntries} /> : (
           <>
             <div className="page-heading animate-in"><span className="eyebrow">Registro semanal</span><h2>{currentTab?.title || "Semana"}</h2><span className="heading-line" /></div>
-            {currentTab?.entries.length ? currentTab.entries.map(entry => (
-              <article className="entry-card animate-in" key={entry.id}>
-                <div className="entry-meta"><span>Registro de avance</span><time>{new Date(entry.createdAt || Date.now()).toLocaleDateString("es-EC")}</time></div>
-                <h3>{entry.title}</h3><EntryBlocks blocks={entry.blocks || []} />
-                {authenticated && (
-                  <div className="entry-actions">
-                    <button className="entry-edit" type="button" onClick={() => entries.edit(entry)}>Editar</button>
-                    <button className="entry-delete" type="button" onClick={() => entries.delete(entry)}>Eliminar registro</button>
-                  </div>
-                )}
-              </article>
-            )) : <div className="public-empty animate-in"><span className="empty-icon">○</span><h3>Aún no hay registros publicados</h3><p>El primer avance de esta semana aparecerá aquí.</p></div>}
+            <Suspense fallback={<p className="drop-hint" role="status">Cargando publicaciones…</p>}>
+              <EntryList
+                authenticated={authenticated}
+                entries={{
+                  ...entries,
+                  items: currentTab?.entries || [],
+                  orderDirty: Boolean(entries.pendingEntryOrders[activeTabId]),
+                  orderSaving: entries.savingEntryOrder,
+                  reorder: entries.reorder,
+                  saveOrder: entries.saveOrder,
+                }}
+              />
+            </Suspense>
             {authenticated && <EditorPanel tabTitle={currentTab?.title || "Semana"} editor={editor} />}
           </>
         )}
@@ -185,8 +136,8 @@ function EditorPanel({ tabTitle, editor }) {
       <label className="field-label" htmlFor="entryTitle">Título del registro</label>
       <input id="entryTitle" className="form-control title-input" value={editor.title} onChange={event => editor.setTitle(event.target.value)} maxLength={120} placeholder="Ej. Validación del primer mecanismo" />
       <div className="block-toolbar" aria-label="Añadir bloques"><span className="toolbar-label">Añadir bloque</span>{[["text", "Párrafo"], ["image", "Imagen"], ["video", "Video"], ["comparison", "Cuadro comparativo"]].map(([type, label]) => <button className="block-add-button" key={type} type="button" onClick={() => editor.addBlock(type)}>+ {label}</button>)}</div>
-      <p className="drop-hint">Puedes adjuntar imágenes o videos desde el área de carga.</p>
-      {editor.blocks.length ? <BlockEditor {...editor.blockProps} /> : <div className="editor-empty-state"><span className="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual, un video o una comparación.</p></div>}
+      <p className="drop-hint">Arrastra el asa de cada bloque para cambiar el orden. Puedes adjuntar imágenes o videos desde el área de carga.</p>
+      {editor.blocks.length ? <Suspense fallback={<p className="drop-hint" role="status">Cargando herramientas del editor…</p>}><BlockEditor {...editor.blockProps} /></Suspense> : <div className="editor-empty-state"><span className="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual, un video o una comparación.</p></div>}
       <div className="editor-footer"><button className="button button-ghost" type="button" onClick={editor.clear}>{editor.editing ? "Cancelar edición" : "Limpiar borrador"}</button><button className="button button-primary" type="button" disabled={editor.saving} onClick={editor.save}>{editor.saving ? "Guardando…" : editor.editing ? "Guardar cambios" : "Guardar avance"}</button></div>
     </section>
   );
@@ -210,6 +161,8 @@ export default function App({ page = "home" }) {
   const [entryTitle, setEntryTitle] = useState("");
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [pendingEntryOrders, setPendingEntryOrders] = useState({});
+  const [savingEntryOrder, setSavingEntryOrder] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -235,7 +188,7 @@ export default function App({ page = "home" }) {
 
       const [tabsResult, entriesResult] = await Promise.all([
         supabaseClient.from("tabs").select("id, title, is_deletable, sort_order").order("sort_order", { ascending: true }),
-        supabaseClient.from("entries").select("id, tab_id, title, blocks, created_at").order("created_at", { ascending: true }),
+        supabaseClient.from("entries").select("id, tab_id, title, blocks, created_at, sort_order").order("tab_id", { ascending: true }).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
       ]);
       if (!mounted) return;
       if (tabsResult.error || entriesResult.error) {
@@ -245,7 +198,7 @@ export default function App({ page = "home" }) {
         return;
       }
 
-      const entries = entriesResult.data.map(entry => ({ id: entry.id, tabId: entry.tab_id, title: entry.title, blocks: Array.isArray(entry.blocks) ? entry.blocks : [], createdAt: entry.created_at }));
+      const entries = entriesResult.data.map((entry, index) => ({ id: entry.id, tabId: entry.tab_id, title: entry.title, blocks: Array.isArray(entry.blocks) ? entry.blocks : [], createdAt: entry.created_at, sortOrder: entry.sort_order ?? index }));
       setTabs(tabsResult.data.map(tab => ({ id: tab.id, title: tab.title, isDeletable: tab.is_deletable, entries: entries.filter(entry => entry.tabId === tab.id) })));
       setLoading(false);
     }
@@ -308,6 +261,41 @@ export default function App({ page = "home" }) {
   function addBlock(type) { setBlocks(current => [...current, makeBlock(type)]); }
   function changeBlock(index, patch) { setBlocks(current => current.map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } : block)); }
   function removeBlock(index) { setBlocks(current => current.filter((_, blockIndex) => blockIndex !== index)); }
+  function reorderBlocks(orderedBlocks) { setBlocks(orderedBlocks); }
+  function reorderEntries(orderedEntries) {
+    const ordered = orderedEntries.map((entry, sortOrder) => ({ ...entry, sortOrder }));
+    setTabs(current => current.map(tab => tab.id === activeTabId ? { ...tab, entries: ordered } : tab));
+    setPendingEntryOrders(current => ({ ...current, [activeTabId]: ordered.map(entry => entry.id) }));
+  }
+  async function saveEntryOrder() {
+    const tabId = activeTabId;
+    const orderedIds = pendingEntryOrders[tabId];
+    if (!orderedIds?.length) return;
+    setSavingEntryOrder(true);
+    try {
+      if (supabaseClient) {
+        const { error } = await supabaseClient.rpc("reorder_entries", { p_tab_id: tabId, p_entry_ids: orderedIds });
+        if (error) throw error;
+      } else {
+        const localTabs = tabs.map(tab => tab.id === tabId ? {
+          ...tab,
+          entries: tab.entries.map((entry, index) => ({ ...entry, sortOrder: index })),
+        } : tab);
+        localStorage.setItem(DATA_KEY, JSON.stringify({ tabs: localTabs }));
+      }
+      setPendingEntryOrders(current => {
+        const next = { ...current };
+        delete next[tabId];
+        return next;
+      });
+      setNotice({ type: "success", message: "Orden de publicaciones guardado." });
+    } catch (error) {
+      console.error("No se pudo guardar el orden de las publicaciones.", error);
+      setNotice({ type: "error", message: `No se pudo guardar el orden: ${error.message}` });
+    } finally {
+      setSavingEntryOrder(false);
+    }
+  }
   function addIdea(index) { setBlocks(current => current.map((block, blockIndex) => blockIndex === index ? { ...block, ideas: [...block.ideas, { title: `Opción ${String.fromCharCode(65 + block.ideas.length)}`, description: "", pros: "", cons: "" }] } : block)); }
   function removeIdea(index, ideaIndex) { setBlocks(current => current.map((block, blockIndex) => blockIndex === index ? { ...block, ideas: block.ideas.filter((_, itemIndex) => itemIndex !== ideaIndex) } : block)); }
 
@@ -381,17 +369,19 @@ export default function App({ page = "home" }) {
       const uploadResult = await uploadBlocks(entryId, validBlocks);
       const preparedBlocks = uploadResult.blocks;
       uploadedPaths = uploadResult.uploadedPaths;
-      const payload = { tab_id: entryTabId, title: entryTitle.trim() || "Registro de actividad", blocks: preparedBlocks, created_at: createdAt };
+      const tabEntries = tabs.find(tab => tab.id === entryTabId)?.entries || [];
+      const nextSortOrder = tabEntries.reduce((highest, entry) => Math.max(highest, entry.sortOrder ?? -1), -1) + 1;
+      const payload = { tab_id: entryTabId, title: entryTitle.trim() || "Registro de actividad", blocks: preparedBlocks, created_at: createdAt, sort_order: existingEntry?.sortOrder ?? nextSortOrder };
       let storedEntry;
       if (supabaseClient) {
         const query = editingEntryId
           ? supabaseClient.from("entries").update({ title: payload.title, blocks: preparedBlocks }).eq("id", entryId)
           : supabaseClient.from("entries").insert(payload);
-        const { data, error } = await query.select("id, tab_id, title, blocks, created_at").single();
+        const { data, error } = await query.select("id, tab_id, title, blocks, created_at, sort_order").single();
         if (error) throw error;
-        storedEntry = { id: data.id, tabId: data.tab_id, title: data.title, blocks: data.blocks, createdAt: data.created_at };
+        storedEntry = { id: data.id, tabId: data.tab_id, title: data.title, blocks: data.blocks, createdAt: data.created_at, sortOrder: data.sort_order };
       } else {
-        storedEntry = { id: entryId, tabId: entryTabId, title: payload.title, blocks: preparedBlocks.map(block => ({ ...block, file: undefined })), createdAt };
+        storedEntry = { id: entryId, tabId: entryTabId, title: payload.title, blocks: preparedBlocks.map(block => ({ ...block, file: undefined })), createdAt, sortOrder: payload.sort_order };
       }
       if (editingEntryId) {
         setTabs(current => current.map(tab => ({ ...tab, entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry) })));
@@ -436,12 +426,13 @@ export default function App({ page = "home" }) {
   function editEntry(entry) {
     setEditingEntryId(entry.id);
     setEntryTitle(entry.title);
-    setBlocks(entry.blocks.map(block => ({
-      ...block,
-      id: block.id || newId(),
-      file: null,
-      previewUrl: "",
-    })));
+    const usedBlockIds = new Set();
+    setBlocks(entry.blocks.map(block => {
+      let id = block.id;
+      while (typeof id !== "string" || !id || usedBlockIds.has(id)) id = newId();
+      usedBlockIds.add(id);
+      return { ...block, id, file: null, previewUrl: "" };
+    }));
     window.requestAnimationFrame(() => document.querySelector(".editor-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
@@ -502,13 +493,17 @@ export default function App({ page = "home" }) {
     editing: Boolean(editingEntryId),
     clear: cancelEditing,
     save: saveEntry,
-    blockProps: { blocks, onChange: changeBlock, onRemove: removeBlock, onAddIdea: addIdea, onRemoveIdea: removeIdea, onImage: addImage, onVideo: addVideo },
+    pendingEntryOrders,
+    savingEntryOrder,
+    reorder: reorderEntries,
+    saveOrder: saveEntryOrder,
+    blockProps: { blocks, onChange: changeBlock, onRemove: removeBlock, onReorder: reorderBlocks, onAddIdea: addIdea, onRemoveIdea: removeIdea, onImage: addImage, onVideo: addVideo, disabled: saving },
   };
 
   return (
     <>
       <SiteHeader page={page} authenticated={authenticated} onAuthClick={authenticated ? logout : showLogin} />
-      {page === "about" ? <AboutPage /> : page === "final-project" ? <FinalProjectPage /> : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry }} editor={editor} loading={loading} />}
+      {page === "about" ? <AboutPage /> : page === "final-project" ? <FinalProjectPage /> : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder }} editor={editor} loading={loading} />}
       <footer className="site-footer">FabLab I+D <span>/</span> Investigación, diseño y desarrollo</footer>
       {notice && <div className={`toast toast-${notice.type}`} role="status" aria-live="polite">{notice.message}</div>}
       <dialog className="auth-dialog" ref={dialogRef} onClose={() => setAuthError("")}>

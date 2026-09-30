@@ -215,3 +215,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .lead { max-width: 650px; color: var(--muted); font-size: 1.1rem; line-height: 1.75; }.role-list { display: grid; gap: 1rem; margin-top: 3rem; }.role-item { display: grid; grid-template-columns: 2.2rem 1fr; gap: .8rem; padding-top: 1rem; border-top: 1px solid var(--line); }.role-item > span { color: var(--blue); font: .7rem 'DM Mono', monospace; }.role-item h2 { margin-bottom: .35rem; font-size: .95rem; }.role-item p { color: var(--muted); font-size: .78rem; line-height: 1.65; }.team-names { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: 2.5rem; color: var(--steel); font: .65rem 'DM Mono', monospace; }.project-page { max-width: 1180px; }.project-hero { max-width: 840px; padding: clamp(2rem, 7vw, 6rem) 0 4rem; }.project-hero p { max-width: 600px; margin-bottom: 1.8rem; color: var(--muted); font-size: 1.05rem; line-height: 1.75; }.project-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }.project-card { min-height: 220px; padding: clamp(1.3rem, 3vw, 2rem); background: var(--white-glass); border: 1px solid var(--line); box-shadow: 0 18px 55px rgba(36,72,91,.08); backdrop-filter: blur(18px); }.project-card-wide { grid-column: span 2; min-height: 260px; background: linear-gradient(135deg, rgba(255,255,255,.9), rgba(224,237,242,.62)); }.project-card h2 { max-width: 480px; margin: .8rem 0; font-size: clamp(1.4rem, 3vw, 2.4rem); letter-spacing: -.06em; }.project-card p { max-width: 550px; color: var(--muted); font-size: .82rem; line-height: 1.7; }
 @media (max-width: 1120px) { .site-header { flex-wrap: wrap; gap: .8rem; }.global-nav { order: 3; width: 100%; justify-content: space-between; margin-left: 0; }.header-actions { margin-left: auto; } }
 @media (max-width: 700px) { .institution-logos { width: 100%; justify-content: space-between; gap: .25rem; }.institution-logo { min-width: 0; flex: 1; padding: .25rem; font-size: .45rem; }.institution-logo-image img { width: 1.8rem; height: 1.8rem; }.global-nav { display: grid; gap: .45rem; }.page-links { justify-content: center; }.about-layout { grid-template-columns: 1fr; gap: 2rem; }.team-photo-card { position: static; }.team-photo-frame, .team-photo-frame img { height: 300px; min-height: 300px; }.project-grid { grid-template-columns: 1fr; }.project-card-wide { grid-column: auto; }.site-header { padding: .8rem 1rem; } }
+.block-header-actions { display: flex; align-items: center; gap: .3rem; }
+.block-drag-handle { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--muted); background: transparent; border: 0; border-radius: .3rem; cursor: grab; touch-action: none; user-select: none; }
+.block-drag-handle:hover:not(:disabled) { color: var(--steel); background: var(--pale-blue); }
+.block-drag-handle:active:not(:disabled) { cursor: grabbing; }
+.block-drag-handle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.block-drag-handle:disabled { cursor: not-allowed; opacity: .5; }
+.editor-block-dragging { z-index: 1; box-shadow: 0 12px 30px rgba(23,35,46,.16); }
+.entry-drag-handle { display: grid; place-items: center; width: 2rem; height: 2rem; margin: 0 0 .6rem auto; color: var(--muted); background: rgba(234,243,247,.7); border: 1px solid var(--line); border-radius: .35rem; cursor: grab; touch-action: none; user-select: none; }
+.entry-drag-handle:hover:not(:disabled) { color: var(--steel); background: var(--pale-blue); }
+.entry-drag-handle:active:not(:disabled) { cursor: grabbing; }
+.entry-drag-handle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.entry-drag-handle:disabled { cursor: not-allowed; opacity: .5; }
+.entry-card-dragging { z-index: 1; box-shadow: 0 18px 45px rgba(23,35,46,.2); }
+.entry-order-hint { margin: 0 0 .7rem; color: var(--muted); font-size: .72rem; }
+.entry-order-actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: .8rem 0 1.5rem; padding: .85rem 1rem; background: var(--pale-blue); border: 1px solid var(--line); }
+.entry-order-actions p { color: var(--steel); font-size: .75rem; }
+.entry-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
