@@ -3,8 +3,11 @@ import { supabaseClient } from "./lib/supabase.js";
 import { BASE_URL } from "./lib/paths.js";
 import { sanitizeRichText } from "./lib/richText.js";
 import LabelInput from "./components/LabelInput.jsx";
+import AnimatedHeading from "./components/AnimatedHeading.jsx";
+import DeleteFuseButton from "./components/DeleteFuseButton.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
 
+const MicroSlats = lazy(() => import("./components/MicroSlats.jsx"));
 const BlockEditor = lazy(() => import("./components/BlockEditor.jsx"));
 const EntryList = lazy(() => import("./components/EntryList.jsx"));
 const EditablePage = lazy(() => import("./components/EditablePage.jsx"));
@@ -83,8 +86,9 @@ function blockForStorage(block, uploadedMedia) {
   return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
 }
 
-function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading, teamMembers }) {
+function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading, teamMembers, deletionInProgress, deletingTabId }) {
   const currentTab = tabs.find(tab => tab.id === activeTabId);
+  const deletingTab = tabs.find(tab => tab.id === deletingTabId);
   const allEntries = tabs.reduce((count, tab) => count + tab.entries.length, 0);
   return (
     <div className="app-shell">
@@ -94,7 +98,22 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
           <div className="section-heading"><span className="eyebrow">Recorrido</span><span className="count-label">{Math.max(0, tabs.length - 1)} semanas</span></div>
           {loading ? <p className="loading-copy">Conectando con la bitácora…</p> : <ul className="tab-list">{tabs.map(tab => <li key={tab.id}><button className={`tab-button ${tab.id === activeTabId ? "active" : ""}`} type="button" onClick={() => setActiveTabId(tab.id)}><span>{tab.title}</span><span className="tab-arrow">↗</span></button></li>)}</ul>}
         </div>
-        {authenticated && <div className="sidebar-section admin-controls"><span className="eyebrow">Gestión</span><button className="button button-secondary button-wide" type="button" onClick={onCreateTab}>+ Añadir semana</button><button className="button button-danger button-wide" type="button" onClick={onDeleteTab}>Eliminar semana actual</button></div>}
+        {authenticated && (
+          <div className="sidebar-section admin-controls">
+            <span className="eyebrow">Gestión</span>
+            <button className="button button-secondary button-wide" type="button" disabled={deletionInProgress} onClick={onCreateTab}>+ Añadir semana</button>
+            {deletingTabId
+              ? <p className="delete-progress" role="status">Eliminando {deletingTab?.title || "semana"}…</p>
+              : <DeleteFuseButton
+                  key={currentTab?.id || "no-week"}
+                  label="Eliminar semana actual"
+                  size="md"
+                  fullWidth
+                  disabled={!currentTab?.isDeletable || deletionInProgress}
+                  onCommit={() => { if (currentTab) void onDeleteTab(currentTab.id); }}
+                />}
+          </div>
+        )}
         <div className="sidebar-note"><span className="note-dot" /><p>Un buen prototipo también deja registro de lo que no funcionó.</p></div>
       </aside>
       <main className="main-content">
@@ -125,7 +144,37 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
 function HomeLanding({ weekCount, entryCount, teamMembers }) {
   return (
     <>
-      <section className="hero-panel animate-in"><span className="eyebrow">Investigación y desarrollo / 2026</span><h2>Del problema al prototipo.</h2><p>Una bitácora abierta sobre decisiones, pruebas y aprendizajes detrás de un producto nuevo.</p><div className="hero-stats"><span><strong>{weekCount}</strong> semanas documentadas</span><span><strong>{entryCount}</strong> registros publicados</span></div></section>
+      <section className="hero-panel animate-in">
+        <div className="hero-slats-background" aria-hidden="true">
+          <Suspense fallback={null}>
+            <MicroSlats
+              preset="swell"
+              color="#4C87A8"
+              glintColor="#FFFFFF"
+              backgroundColor="rgba(0, 0, 0, 0)"
+              slatWidth={10}
+              slatHeight={25}
+              gap={3}
+              roundness={0.75}
+              stretch={0.7}
+              perspective={0.7}
+              interactive
+              cursorStrength={1}
+              cursorSize={40}
+              swirl={0.2}
+              trail={1.4}
+              lean={0.45}
+              intro
+            />
+          </Suspense>
+        </div>
+        <div className="hero-content">
+          <span className="eyebrow">Investigación y desarrollo / 2026</span>
+          <AnimatedHeading as="h2" className="hero-title" text="Del problema al prototipo." />
+          <p>Una bitácora abierta sobre decisiones, pruebas y aprendizajes detrás de un producto nuevo.</p>
+          <div className="hero-stats"><span><strong>{weekCount}</strong> semanas documentadas</span><span><strong>{entryCount}</strong> registros publicados</span></div>
+        </div>
+      </section>
       <section className="intro-grid animate-in"><div className="section-heading"><span className="eyebrow">Equipo de trabajo</span><h3>Cuatro miradas, un objetivo.</h3></div><div className="team-list">{teamMembers.map((name, index) => <div className="team-member" key={`${name}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><small>Investigación / Desarrollo</small></div>)}</div></section>
     </>
   );
@@ -156,6 +205,9 @@ export default function App({ page = "home" }) {
   const [entryTitle, setEntryTitle] = useState("");
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState(null);
+  const [deletingTabId, setDeletingTabId] = useState(null);
+  const [deletionInProgress, setDeletionInProgress] = useState(false);
   const [pendingEntryOrders, setPendingEntryOrders] = useState({});
   const [savingEntryOrder, setSavingEntryOrder] = useState(false);
   const [email, setEmail] = useState("");
@@ -163,6 +215,7 @@ export default function App({ page = "home" }) {
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const authDialogRef = useRef(null);
+  const deletionLockRef = useRef(false);
   const authenticated = Boolean(session);
 
   useEffect(() => {
@@ -441,26 +494,41 @@ export default function App({ page = "home" }) {
   }
 
   async function deleteEntry(entry) {
-    if (!window.confirm("¿Eliminar este registro y sus archivos multimedia?")) return;
-    let mediaCleanupError = "";
-    if (supabaseClient) {
-      const { error } = await supabaseClient.from("entries").delete().eq("id", entry.id);
-      if (error) { setNotice({ type: "error", message: "No se pudo eliminar el registro." }); return; }
-      const paths = entry.blocks.map(block => block.storagePath).filter(Boolean);
-      if (paths.length) {
-        try {
-          const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
-          if (cleanupError) throw cleanupError;
-        } catch (error) {
-          console.error("Se eliminó el registro, pero no se pudieron limpiar algunos archivos multimedia.", error);
-          mediaCleanupError = error.message || "Error desconocido de Storage.";
+    if (deletionLockRef.current) {
+      setNotice({ type: "error", message: "Espera a que termine la eliminación en curso antes de borrar otro elemento." });
+      return;
+    }
+    deletionLockRef.current = true;
+    setDeletionInProgress(true);
+    setDeletingEntryId(entry.id);
+    try {
+      let mediaCleanupError = "";
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from("entries").delete().eq("id", entry.id);
+        if (error) { setNotice({ type: "error", message: "No se pudo eliminar el registro." }); return; }
+        const paths = entry.blocks.map(block => block.storagePath).filter(Boolean);
+        if (paths.length) {
+          try {
+            const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
+            if (cleanupError) throw cleanupError;
+          } catch (error) {
+            console.error("Se eliminó el registro, pero no se pudieron limpiar algunos archivos multimedia.", error);
+            mediaCleanupError = error.message || "Error desconocido de Storage.";
+          }
         }
       }
+      updateCurrentTab(tab => ({ ...tab, entries: tab.entries.filter(item => item.id !== entry.id) }));
+      setNotice(mediaCleanupError
+        ? { type: "error", message: `Registro eliminado, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
+        : { type: "success", message: "Registro eliminado." });
+    } catch (error) {
+      console.error("No se pudo eliminar el registro.", error);
+      setNotice({ type: "error", message: `No se pudo eliminar el registro: ${error.message || "error desconocido."}` });
+    } finally {
+      deletionLockRef.current = false;
+      setDeletionInProgress(false);
+      setDeletingEntryId(null);
     }
-    updateCurrentTab(tab => ({ ...tab, entries: tab.entries.filter(item => item.id !== entry.id) }));
-    setNotice(mediaCleanupError
-      ? { type: "error", message: `Registro eliminado, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
-      : { type: "success", message: "Registro eliminado." });
   }
 
   async function createTab() {
@@ -475,38 +543,54 @@ export default function App({ page = "home" }) {
     setActiveTabId(newTab.id);
   }
 
-  async function deleteTab() {
-    const tab = tabs.find(item => item.id === activeTabId);
-    if (!tab?.isDeletable || !window.confirm(`¿Eliminar ${tab.title} y sus registros?`)) return;
-    let mediaCleanupError = "";
-    if (supabaseClient) {
-      const { data: rows, error: readError } = await supabaseClient.from("entries").select("blocks").eq("tab_id", activeTabId);
-      if (readError) { setNotice({ type: "error", message: "No se pudieron consultar los archivos de la semana." }); return; }
-      const paths = (rows || []).flatMap(row => row.blocks.map(block => block.storagePath).filter(Boolean));
-      const { error: entriesError } = await supabaseClient.from("entries").delete().eq("tab_id", activeTabId);
-      if (entriesError) { setNotice({ type: "error", message: "No se pudieron eliminar los registros de la semana." }); return; }
-      if (paths.length) {
-        try {
-          const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
-          if (cleanupError) throw cleanupError;
-        } catch (error) {
-          console.error("Se eliminaron los registros, pero no se pudieron limpiar algunos archivos multimedia.", error);
-          mediaCleanupError = error.message || "Error desconocido de Storage.";
+  async function deleteTab(tabId) {
+    const tab = tabs.find(item => item.id === tabId);
+    if (!tab?.isDeletable) return;
+    if (deletionLockRef.current) {
+      setNotice({ type: "error", message: "Espera a que termine la eliminación en curso antes de borrar otro elemento." });
+      return;
+    }
+    deletionLockRef.current = true;
+    setDeletionInProgress(true);
+    setDeletingTabId(tabId);
+    try {
+      let mediaCleanupError = "";
+      if (supabaseClient) {
+        const { data: rows, error: readError } = await supabaseClient.from("entries").select("blocks").eq("tab_id", tabId);
+        if (readError) { setNotice({ type: "error", message: "No se pudieron consultar los archivos de la semana." }); return; }
+        const paths = (rows || []).flatMap(row => row.blocks.map(block => block.storagePath).filter(Boolean));
+        const { error: entriesError } = await supabaseClient.from("entries").delete().eq("tab_id", tabId);
+        if (entriesError) { setNotice({ type: "error", message: "No se pudieron eliminar los registros de la semana." }); return; }
+        if (paths.length) {
+          try {
+            const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
+            if (cleanupError) throw cleanupError;
+          } catch (error) {
+            console.error("Se eliminaron los registros, pero no se pudieron limpiar algunos archivos multimedia.", error);
+            mediaCleanupError = error.message || "Error desconocido de Storage.";
+          }
+        }
+        const { error: tabError } = await supabaseClient.from("tabs").delete().eq("id", tabId);
+        if (tabError) {
+          setNotice({ type: "error", message: mediaCleanupError
+            ? `No se pudo eliminar la semana; además, falló la limpieza de archivos: ${mediaCleanupError}`
+            : "No se pudo eliminar la semana." });
+          return;
         }
       }
-      const { error: tabError } = await supabaseClient.from("tabs").delete().eq("id", activeTabId);
-      if (tabError) {
-        setNotice({ type: "error", message: mediaCleanupError
-          ? `No se pudo eliminar la semana; además, falló la limpieza de archivos: ${mediaCleanupError}`
-          : "No se pudo eliminar la semana." });
-        return;
-      }
+      setTabs(current => current.filter(item => item.id !== tabId));
+      setActiveTabId(current => current === tabId ? "portada" : current);
+      setNotice(mediaCleanupError
+        ? { type: "error", message: `Semana eliminada, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
+        : { type: "success", message: "Semana eliminada." });
+    } catch (error) {
+      console.error(`No se pudo eliminar la semana ${tab.title}.`, error);
+      setNotice({ type: "error", message: `No se pudo eliminar la semana: ${error.message || "error desconocido."}` });
+    } finally {
+      deletionLockRef.current = false;
+      setDeletionInProgress(false);
+      setDeletingTabId(null);
     }
-    setTabs(current => current.filter(item => item.id !== activeTabId));
-    setActiveTabId("portada");
-    setNotice(mediaCleanupError
-      ? { type: "error", message: `Semana eliminada, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
-      : { type: "success", message: "Semana eliminada." });
   }
 
   const dialogRef = authDialogRef;
@@ -533,7 +617,7 @@ export default function App({ page = "home" }) {
         <Suspense fallback={<main className="inner-page" role="status">Cargando contenido…</main>}>
           <EditablePage page={page} authenticated={authenticated} />
         </Suspense>
-      ) : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder }} editor={editor} loading={loading} teamMembers={teamMembers} />}
+      ) : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder, deletingEntryId, deletionInProgress }} editor={editor} loading={loading} teamMembers={teamMembers} deletionInProgress={deletionInProgress} deletingTabId={deletingTabId} />}
       <footer className="site-footer">FabLab I+D <span>/</span> Investigación, diseño y desarrollo</footer>
       {notice && <div className={`toast toast-${notice.type}`} role="status" aria-live="polite">{notice.message}</div>}
       <dialog className="auth-dialog" ref={dialogRef} onClose={() => setAuthError("")}>
