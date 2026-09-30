@@ -101,6 +101,18 @@ function sanitizePageText(page, content) {
   };
 }
 
+function pageDatabaseError(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  if (["42P01", "PGRST204", "PGRST205"].includes(code) || /site_pages.*(not found|does not exist|schema cache)/i.test(message)) {
+    return "No se guardaron los cambios porque falta la tabla site_pages en Supabase. Ejecuta supabase-site-pages.sql en el proyecto correcto y vuelve a intentar.";
+  }
+  if (code === "42501" || /row-level security|permission denied/i.test(message)) {
+    return "Supabase rechazó el guardado por permisos. Cierra sesión, vuelve a iniciarla y confirma que estén aplicadas las políticas de site_pages.";
+  }
+  return `No se pudieron guardar los cambios: ${message || "error desconocido de Supabase."}`;
+}
+
 export default function EditablePage({ page, authenticated }) {
   const [content, setContent] = useState(() => mergePageContent(page, {}));
   const [draft, setDraft] = useState(null);
@@ -127,7 +139,7 @@ export default function EditablePage({ page, authenticated }) {
       if (!active) return;
       if (error) {
         console.error(`No se pudo cargar el contenido de ${page}.`, error);
-        setErrorMessage(`No se pudo cargar el contenido guardado de esta página: ${error.message}`);
+        setErrorMessage(pageDatabaseError(error).replace("No se guardaron los cambios", "No se cargó la página"));
       } else if (data?.content) {
         setContent(mergePageContent(page, data.content));
       }
@@ -242,6 +254,7 @@ export default function EditablePage({ page, authenticated }) {
     setErrorMessage("");
     setSuccessMessage("");
     const uploadedPaths = [];
+    let databaseWriteCompleted = false;
     try {
       let userId = null;
       if (supabaseClient) {
@@ -262,22 +275,26 @@ export default function EditablePage({ page, authenticated }) {
         teamNames: draft.teamNames.map(name => name.trim()).filter(Boolean),
       };
       delete prepared.file;
+      let savedContent = prepared;
       if (supabaseClient) {
-        const { error } = await supabaseClient.from("site_pages").upsert({
+        const { data, error } = await supabaseClient.from("site_pages").upsert({
           slug: page,
           content: prepared,
           updated_at: new Date().toISOString(),
           updated_by: userId,
-        }, { onConflict: "slug" });
+        }, { onConflict: "slug" }).select("slug, content").single();
         if (error) throw error;
+        if (!data?.content || data.slug !== page) throw new Error("Supabase no confirmó el contenido actualizado.");
+        savedContent = data.content;
+        databaseWriteCompleted = true;
       } else {
         localStorage.setItem(`fablab-page-${page}`, JSON.stringify(prepared));
       }
 
-      const retained = new Set(imagePaths(prepared));
+      const retained = new Set(imagePaths(savedContent));
       const removedPaths = imagePaths(content).filter(path => !retained.has(path));
       revokeDraftImages(draft);
-      setContent(mergePageContent(page, prepared));
+      setContent(mergePageContent(page, savedContent));
       setDraft(null);
       setSuccessMessage("Cambios guardados.");
       if (removedPaths.length && supabaseClient) {
@@ -288,12 +305,12 @@ export default function EditablePage({ page, authenticated }) {
         }
       }
     } catch (error) {
-      if (uploadedPaths.length && supabaseClient) {
+      if (uploadedPaths.length && supabaseClient && !databaseWriteCompleted) {
         const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(uploadedPaths);
         if (cleanupError) console.error("No se pudieron limpiar imágenes cargadas tras fallar el guardado.", cleanupError);
       }
       console.error(`No se pudo guardar la página ${page}.`, error);
-      setErrorMessage(`No se pudieron guardar los cambios: ${error.message}`);
+      setErrorMessage(pageDatabaseError(error));
     } finally {
       setSaving(false);
     }
