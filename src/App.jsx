@@ -6,6 +6,7 @@ import LabelInput from "./components/LabelInput.jsx";
 import AnimatedHeading from "./components/AnimatedHeading.jsx";
 import DeleteFuseButton from "./components/DeleteFuseButton.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
+import BorderGlow from "./components/BorderGlow.jsx";
 
 const MicroSlats = lazy(() => import("./components/MicroSlats.jsx"));
 const BlockEditor = lazy(() => import("./components/BlockEditor.jsx"));
@@ -175,7 +176,7 @@ function HomeLanding({ weekCount, entryCount, teamMembers }) {
           <div className="hero-stats"><span><strong>{weekCount}</strong> semanas documentadas</span><span><strong>{entryCount}</strong> registros publicados</span></div>
         </div>
       </section>
-      <section className="intro-grid animate-in"><div className="section-heading"><span className="eyebrow">Equipo de trabajo</span><h3>Cuatro miradas, un objetivo.</h3></div><div className="team-list">{teamMembers.map((name, index) => <div className="team-member" key={`${name}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><small>Investigación / Desarrollo</small></div>)}</div></section>
+      <section className="intro-grid animate-in"><div className="section-heading"><span className="eyebrow">Equipo de trabajo</span><h3>Cuatro miradas, un objetivo.</h3></div><div className="team-list">{teamMembers.map((name, index) => <BorderGlow key={`${name}-${index}`} className="team-member" borderRadius={8} glowRadius={16} glowIntensity={0.7} fillOpacity={0.18}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><small>Investigación / Desarrollo</small></BorderGlow>)}</div></section>
     </>
   );
 }

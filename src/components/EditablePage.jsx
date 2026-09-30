@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { supabaseClient } from "../lib/supabase.js";
 import { BASE_URL, publicAsset } from "../lib/paths.js";
 import RichTextEditor, { RichTextDisplay } from "./RichTextEditor.jsx";
 import { sanitizeRichText } from "../lib/richText.js";
 import AnimatedHeading from "./AnimatedHeading.jsx";
+import BorderGlow from "./BorderGlow.jsx";
+
+const SpecularButton = lazy(() => import("./SpecularButton.jsx"));
 
 const TEAM = ["Javier Abad", "Steven Giron", "Francisco Siguenza", "Juan Pablo Quinteros"];
 const PAGE_DEFAULTS = {
@@ -343,14 +346,42 @@ export default function EditablePage({ page, authenticated }) {
     );
   }
 
+  const projectHref = safeLink(content.linkUrl || `${BASE_URL}index.html`);
   return (
     <>
       <main className="inner-page project-page">
-        <section className="project-hero"><span className="eyebrow">{content.eyebrow}</span><AnimatedHeading as="h1" className="page-title" text={content.title} /><RichTextDisplay as="div" className="project-lead rich-display" value={content.lead} />{content.linkLabel && safeLink(content.linkUrl || `${BASE_URL}index.html`) && <a className="button button-primary" href={safeLink(content.linkUrl || `${BASE_URL}index.html`)}>{content.linkLabel}</a>}</section>
+        <section className="project-hero">
+          <span className="eyebrow">{content.eyebrow}</span>
+          <AnimatedHeading as="h1" className="page-title" text={content.title} />
+          <RichTextDisplay as="div" className="project-lead rich-display" value={content.lead} />
+          {content.linkLabel && projectHref && (
+            <Suspense fallback={<a className="button button-primary" href={projectHref}>{content.linkLabel}</a>}>
+              <SpecularButton
+                href={projectHref}
+                size="md"
+                radius={12}
+                tint="#2d526b"
+                tintOpacity={1}
+                textColor="#ffffff"
+                lineColor="#eaf3f7"
+                baseColor="#4c87a8"
+                intensity={0.9}
+                shineSize={11}
+                shineFade={35}
+                thickness={1.2}
+                speed={0.35}
+                proximity={170}
+                className="specular-project-link"
+              >
+                {content.linkLabel}
+              </SpecularButton>
+            </Suspense>
+          )}
+        </section>
         <section className="project-grid">{content.sections.map((section, index) => (
-          <article className={`project-card ${section.wide ? "project-card-wide" : ""}`} key={section.id || `${section.title}-${index}`}>
+          <BorderGlow as="article" className={`project-card ${section.wide ? "project-card-wide" : ""}`} key={section.id || `${section.title}-${index}`} borderRadius={12} glowRadius={22} glowIntensity={0.85} fillOpacity={0.22}>
             <span className="eyebrow">{section.eyebrow}</span><RichTextDisplay as="h2" value={section.title} inlineOnly /><RichTextDisplay as="div" className="project-description rich-display" value={section.description} />{section.image?.url && <img className="page-section-image" src={section.image.url} alt={section.image.alt || section.title} />}
-          </article>
+          </BorderGlow>
         ))}</section>
       </main>
       {authenticated && <PageEditor page={page} content={draft || content} editing={Boolean(draft)} loading={loading} saving={saving} errorMessage={errorMessage} successMessage={successMessage} onStart={startEditing} onCancel={cancelEditing} onSave={savePage} onUpdate={updateDraft} onSection={updateSection} onMoveSection={moveSection} onAddSection={addSection} onRemoveSection={removeSection} onSelectImage={selectImage} onRemoveImage={removeImage} onTeamName={updateTeamName} onAddTeamMember={addTeamMember} onRemoveTeamMember={removeTeamMember} />}
