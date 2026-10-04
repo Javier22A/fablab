@@ -56,7 +56,7 @@ function SortableBlock({ block, index, label, className, onRemove, disabled, chi
   );
 }
 
-export default function BlockEditor({ blocks, onChange, onRemove, onReorder, onAddIdea, onRemoveIdea, onImage, onVideo, disabled }) {
+export default function BlockEditor({ blocks, onChange, onRemove, onReorder, onAddIdea, onRemoveIdea, onImage, onVideo, onDownload, disabled }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -123,6 +123,16 @@ export default function BlockEditor({ blocks, onChange, onRemove, onReorder, onA
               );
             }
 
+            if (block.type === "download") {
+              return (
+                <SortableBlock key={block.id} block={block} index={index} label="Archivo descargable" className="block-download" onRemove={() => onRemove(index)} disabled={disabled}>
+                  <DownloadFilePicker block={block} index={index} onSelect={file => onDownload(index, file)} />
+                  <input className="form-control block-title" value={block.title || ""} onChange={event => update({ title: event.target.value })} placeholder="Título de la tarjeta (opcional)" aria-label={`Título del archivo descargable ${index + 1}`} />
+                  <textarea className="form-control" value={block.description || ""} onChange={event => update({ description: event.target.value })} placeholder="Descripción breve (opcional)" aria-label={`Descripción del archivo descargable ${index + 1}`} rows={3} />
+                </SortableBlock>
+              );
+            }
+
             return (
               <SortableBlock key={block.id} block={block} index={index} label="Párrafo" className="block-text" onRemove={() => onRemove(index)} disabled={disabled}>
                 <RichTextEditor
@@ -167,4 +177,32 @@ function MediaDropzone({ block, index, preview, isVideo, onSelect }) {
       <input type="file" accept={isVideo ? "video/*" : "image/*"} onChange={handleFileChange} aria-label={`Seleccionar ${isVideo ? "video" : "imagen"} del bloque ${index + 1}`} />
     </label>
   );
+}
+
+function DownloadFilePicker({ block, index, onSelect }) {
+  function handleFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) onSelect(file);
+  }
+
+  return (
+    <div className="download-file-picker">
+      <div className="download-file-info">
+        <strong>{block.fileName || "Todavía no hay un archivo seleccionado"}</strong>
+        <small>{block.fileName ? `${formatFileSize(block.fileSize)} · Descarga pública` : "Cualquier formato · máximo 50 MB · descarga pública"}</small>
+      </div>
+      <label className="button button-secondary download-file-select">
+        {block.fileName ? "Elegir otro archivo" : "Seleccionar archivo"}
+        <input type="file" onChange={handleFileChange} aria-label={`Seleccionar archivo descargable del bloque ${index + 1}`} />
+      </label>
+    </div>
+  );
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "Tamaño no disponible";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

@@ -16,6 +16,7 @@ const EditablePage = lazy(() => import("./components/EditablePage.jsx"));
 const DATA_KEY = "proyecto_id_data";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
 const DEFAULT_TABS = [
   { id: "portada", title: "Portada General", isDeletable: false, entries: [] },
@@ -31,6 +32,7 @@ function makeBlock(type) {
   const id = newId();
   if (type === "image") return { id, type, fileName: "", mimeType: "", alt: "Evidencia visual", dataUrl: "", file: null, previewUrl: "" };
   if (type === "video") return { id, type, fileName: "", mimeType: "", alt: "Video de evidencia", file: null, previewUrl: "" };
+  if (type === "download") return { id, type, title: "", description: "", fileName: "", mimeType: "", fileSize: 0, file: null };
   if (type === "comparison") return { id, type, title: "Comparación de alternativas", ideas: [{ title: "Opción A", description: "", pros: "", cons: "" }] };
   return { id, type: "text", content: "" };
 }
@@ -82,6 +84,9 @@ function convertImage(file) {
 function blockForStorage(block, uploadedMedia) {
   if (block.type === "image" || block.type === "video") {
     return { id: block.id, type: block.type, fileName: block.fileName, mimeType: block.mimeType, alt: block.alt, storagePath: uploadedMedia?.storagePath || block.storagePath || null, url: uploadedMedia?.url || block.url || null };
+  }
+  if (block.type === "download") {
+    return { id: block.id, type: block.type, title: block.title || "", description: block.description || "", fileName: block.fileName, mimeType: block.mimeType, fileSize: block.fileSize || 0, storagePath: uploadedMedia?.storagePath || block.storagePath || null, url: uploadedMedia?.url || block.url || null };
   }
   if (block.type === "text") return { id: block.id, type: "text", content: sanitizeRichText(block.content) };
   return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
@@ -187,9 +192,9 @@ function EditorPanel({ tabTitle, editor }) {
       <div className="editor-heading"><div><span className="eyebrow">{editor.editing ? "Editar publicación" : "Modo de edición"}</span><h2>{editor.editing ? "Actualizar registro" : `Nuevo registro en ${tabTitle}`}</h2><p>Construye la entrada por bloques. Cada bloque se guarda como JSON en Supabase.</p></div><span className="editor-save-state">{editor.saving ? "Guardando…" : "Listo para editar"}</span></div>
       <label className="field-label" htmlFor="entryTitle">Título del registro</label>
       <input id="entryTitle" className="form-control title-input" value={editor.title} onChange={event => editor.setTitle(event.target.value)} maxLength={120} placeholder="Ej. Validación del primer mecanismo" />
-      <div className="block-toolbar" aria-label="Añadir bloques"><span className="toolbar-label">Añadir bloque</span>{[["text", "Párrafo"], ["image", "Imagen"], ["video", "Video"], ["comparison", "Cuadro comparativo"]].map(([type, label]) => <button className="block-add-button" key={type} type="button" onClick={() => editor.addBlock(type)}>+ {label}</button>)}</div>
-      <p className="drop-hint">Arrastra el asa de cada bloque para cambiar el orden. Puedes adjuntar imágenes o videos desde el área de carga.</p>
-      {editor.blocks.length ? <Suspense fallback={<p className="drop-hint" role="status">Cargando herramientas del editor…</p>}><BlockEditor {...editor.blockProps} /></Suspense> : <div className="editor-empty-state"><span className="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual, un video o una comparación.</p></div>}
+      <div className="block-toolbar" aria-label="Añadir bloques"><span className="toolbar-label">Añadir bloque</span>{[["text", "Párrafo"], ["image", "Imagen"], ["video", "Video"], ["comparison", "Cuadro comparativo"], ["download", "Archivo descargable"]].map(([type, label]) => <button className="block-add-button" key={type} type="button" onClick={() => editor.addBlock(type)}>+ {label}</button>)}</div>
+      <p className="drop-hint">Arrastra el asa de cada bloque para cambiar el orden. Puedes adjuntar imágenes, videos o archivos descargables de hasta 50 MB.</p>
+      {editor.blocks.length ? <Suspense fallback={<p className="drop-hint" role="status">Cargando herramientas del editor…</p>}><BlockEditor {...editor.blockProps} /></Suspense> : <div className="editor-empty-state"><span className="empty-icon">+</span><strong>Tu registro empieza aquí</strong><p>Añade un párrafo, una evidencia visual, un video, un archivo descargable o una comparación.</p></div>}
       <div className="editor-footer"><button className="button button-ghost" type="button" onClick={editor.clear}>{editor.editing ? "Cancelar edición" : "Limpiar borrador"}</button><button className="button button-primary" type="button" disabled={editor.saving} onClick={editor.save}>{editor.saving ? "Guardando…" : editor.editing ? "Guardar cambios" : "Guardar avance"}</button></div>
     </section>
   );
@@ -369,8 +374,22 @@ export default function App({ page = "home" }) {
     changeBlock(index, { file, previewUrl, fileName: file.name, mimeType: file.type });
   }
 
+  function addDownload(index, file) {
+    if (!file) return;
+    if (file.size > MAX_DOWNLOAD_BYTES) {
+      setNotice({ type: "error", message: "El archivo descargable supera el límite de 50 MB." });
+      return;
+    }
+    changeBlock(index, { file, fileName: file.name, mimeType: file.type || "application/octet-stream", fileSize: file.size });
+  }
+
   async function uploadBlocks(entryId, sourceBlocks) {
-    if (!supabaseClient) return { blocks: sourceBlocks.map(block => ({ ...block })), uploadedPaths: [] };
+    if (!supabaseClient) {
+      if (sourceBlocks.some(block => block.type === "download" && block.file)) {
+        throw new Error("La carga de archivos descargables requiere que Supabase esté configurado.");
+      }
+      return { blocks: sourceBlocks.map(block => block.type === "download" ? blockForStorage(block) : { ...block }), uploadedPaths: [] };
+    }
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const userId = sessionData.session?.user?.id;
     if (!userId) throw new Error("No se encontró la sesión de Supabase.");
@@ -379,17 +398,21 @@ export default function App({ page = "home" }) {
     try {
       const preparedBlocks = [];
       for (const block of sourceBlocks) {
-        if (!((block.type === "image" && block.file) || (block.type === "video" && block.file))) {
+        if (!((block.type === "image" || block.type === "video" || block.type === "download") && block.file)) {
           preparedBlocks.push(blockForStorage(block));
           continue;
         }
-        const safeName = block.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const safeName = (block.fileName || "archivo").replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 120) || "archivo";
         const storagePath = `${userId}/${entryId}/${newId()}-${safeName}`;
         const { error } = await supabaseClient.storage.from("project-media").upload(storagePath, block.file, { contentType: block.mimeType || "application/octet-stream", upsert: false });
         if (error) throw error;
         uploadedPaths.push(storagePath);
-        const { data } = supabaseClient.storage.from("project-media").getPublicUrl(storagePath);
-        preparedBlocks.push(blockForStorage({ ...block, url: data.publicUrl, storagePath }));
+        const { data } = supabaseClient.storage.from("project-media").getPublicUrl(
+          storagePath,
+          block.type === "download" ? { download: block.fileName || true } : undefined,
+        );
+        const publicUrl = data.publicUrl;
+        preparedBlocks.push(blockForStorage({ ...block, url: publicUrl, storagePath }, { url: publicUrl, storagePath }));
       }
       return { blocks: preparedBlocks, uploadedPaths };
     } catch (error) {
@@ -402,7 +425,7 @@ export default function App({ page = "home" }) {
   }
 
   async function saveEntry() {
-    const validBlocks = blocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.file || block.url : block.type === "video" ? block.file || block.url : block.ideas.length > 0);
+    const validBlocks = blocks.filter(block => block.type === "text" ? block.content.trim() : block.type === "image" ? block.file || block.url : block.type === "video" ? block.file || block.url : block.type === "download" ? block.file || block.url : block.ideas.length > 0);
     if (!validBlocks.length) { setNotice({ type: "error", message: "Añade al menos un bloque antes de guardar." }); return; }
     const existingEntry = editingEntryId
       ? tabs.flatMap(tab => tab.entries).find(entry => entry.id === editingEntryId)
@@ -608,7 +631,7 @@ export default function App({ page = "home" }) {
     savingEntryOrder,
     reorder: reorderEntries,
     saveOrder: saveEntryOrder,
-    blockProps: { blocks, onChange: changeBlock, onRemove: removeBlock, onReorder: reorderBlocks, onAddIdea: addIdea, onRemoveIdea: removeIdea, onImage: addImage, onVideo: addVideo, disabled: saving },
+    blockProps: { blocks, onChange: changeBlock, onRemove: removeBlock, onReorder: reorderBlocks, onAddIdea: addIdea, onRemoveIdea: removeIdea, onImage: addImage, onVideo: addVideo, onDownload: addDownload, disabled: saving },
   };
 
   return (

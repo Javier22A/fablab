@@ -120,6 +120,25 @@ function EntryBlocks({ blocks }) {
       const source = mediaUrl(block.url || block.previewUrl);
       return source ? <figure className="content-video" key={block.id || index}><video controls preload="metadata" src={source} /><figcaption>{block.fileName || "Video de evidencia"}</figcaption></figure> : null;
     }
+    if (block.type === "download") {
+      const source = downloadUrl(block.url);
+      if (!source) return null;
+      const extension = block.fileName?.split(".").pop()?.toUpperCase() || "ARCHIVO";
+      return (
+        <section className="content-download" key={block.id || index}>
+          <div className="download-card-icon" aria-hidden="true"><span>{extension.slice(0, 5)}</span></div>
+          <div className="download-card-content">
+            <span className="block-kicker">Archivo descargable · {formatFileSize(block.fileSize)}</span>
+            <h4>{block.title || block.fileName || "Archivo del proyecto"}</h4>
+            {block.description && <p>{block.description}</p>}
+            <small className="download-file-name">{block.fileName || "Archivo sin nombre"}</small>
+          </div>
+          <a className="download-card-link" href={source} download={block.fileName || undefined}>
+            <span>Descargar</span><span aria-hidden="true">↓</span>
+          </a>
+        </section>
+      );
+    }
     if (block.type === "comparison") {
       return (
         <section className="content-comparison" key={block.id || index}>
@@ -146,4 +165,21 @@ function mediaUrl(value) {
   } catch {
     return "";
   }
+}
+
+function downloadUrl(value) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value, window.location.href);
+    return ["https:", "http:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "Tamaño no disponible";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
