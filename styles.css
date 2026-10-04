@@ -37,6 +37,30 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .fuse-delete-fallback { width: 100%; }
 .delete-progress { color: var(--danger); font-size: .72rem; font-weight: 700; }
 .content-video figcaption { margin-top: .45rem; color: var(--muted); font: .65rem 'DM Mono', monospace; }
+.content-download { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) auto; align-items: center; gap: 1rem; margin: 1.3rem 0; padding: 1rem; background: rgba(234,243,247,.6); border: 1px solid var(--line); }
+.download-card-icon { display: grid; place-items: center; width: 3.2rem; height: 3.6rem; color: var(--steel); background: rgba(255,255,255,.8); border: 1px solid var(--line); border-radius: .35rem; font: 500 .58rem 'DM Mono', monospace; overflow-wrap: anywhere; text-align: center; }
+.download-card-content { min-width: 0; }
+.download-card-content h4 { margin: .25rem 0; font-size: .95rem; }
+.download-card-content p { margin: .35rem 0; color: var(--muted); font-size: .76rem; line-height: 1.6; white-space: pre-line; }
+.download-card-content .block-kicker { font-size: .57rem; }
+.download-file-name { display: block; overflow-wrap: anywhere; color: var(--muted); font: .61rem 'DM Mono', monospace; }
+.download-card-link { display: inline-flex; align-items: center; gap: .6rem; padding: .65rem .85rem; color: #fff; background: var(--steel); border-radius: .4rem; font-size: .72rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.download-card-link:hover { background: #1e4055; }
+.download-card-link:focus-visible { outline: 3px solid rgba(76,135,168,.4); outline-offset: 3px; }
+.download-file-picker { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; background: rgba(234,243,247,.55); border: 1px dashed var(--line); }
+.download-file-info { display: grid; min-width: 0; gap: .3rem; }
+.download-file-info strong { overflow-wrap: anywhere; font-size: .78rem; }
+.download-file-info small { color: var(--muted); font-size: .65rem; }
+.download-file-select { position: relative; flex: 0 0 auto; overflow: hidden; cursor: pointer; }
+.download-file-select input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.block-download > .form-control { margin-top: .7rem; }
+@media (max-width: 600px) {
+  .content-download { grid-template-columns: 2.8rem minmax(0, 1fr); gap: .7rem; }
+  .download-card-icon { width: 2.8rem; }
+  .download-card-link { grid-column: 1 / -1; justify-content: center; }
+  .download-file-picker { align-items: stretch; flex-direction: column; }
+  .download-file-select { align-self: flex-start; }
+}
 .loading-copy { color: var(--muted); font-size: .75rem; line-height: 1.6; }
 
 /* ══ Label input ═══════════════════════════════════════════
