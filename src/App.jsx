@@ -189,7 +189,7 @@ function HomeLanding({ weekCount, entryCount, teamMembers }) {
 function EditorPanel({ tabTitle, editor }) {
   return (
     <section className="editor-panel">
-      <div className="editor-heading"><div><span className="eyebrow">{editor.editing ? "Editar publicación" : "Modo de edición"}</span><h2>{editor.editing ? "Actualizar registro" : `Nuevo registro en ${tabTitle}`}</h2><p>Construye la entrada por bloques. Cada bloque se guarda como JSON en Supabase.</p></div><span className="editor-save-state">{editor.saving ? "Guardando…" : "Listo para editar"}</span></div>
+      <div className="editor-heading"><div><span className="eyebrow">{editor.editing ? "Editar publicación" : "Modo de edición"}</span><h2>{editor.editing ? "Actualizar registro" : `Nuevo registro en ${tabTitle}`}</h2><p>Aquí se construye la entrada por bloques separados :D </p></div><span className="editor-save-state">{editor.saving ? "Guardando…" : "Listo para editar"}</span></div>
       <label className="field-label" htmlFor="entryTitle">Título del registro</label>
       <input id="entryTitle" className="form-control title-input" value={editor.title} onChange={event => editor.setTitle(event.target.value)} maxLength={120} placeholder="Ej. Validación del primer mecanismo" />
       <div className="block-toolbar" aria-label="Añadir bloques"><span className="toolbar-label">Añadir bloque</span>{[["text", "Párrafo"], ["image", "Imagen"], ["video", "Video"], ["comparison", "Cuadro comparativo"], ["download", "Archivo descargable"]].map(([type, label]) => <button className="block-add-button" key={type} type="button" onClick={() => editor.addBlock(type)}>+ {label}</button>)}</div>
