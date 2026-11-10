@@ -10,7 +10,8 @@ export default defineConfig({
       input: {
         home: resolve(import.meta.dirname, "index.html"),
         about: resolve(import.meta.dirname, "about.html"),
-        finalProject: resolve(import.meta.dirname, "final-project.html")
+        finalProject: resolve(import.meta.dirname, "final-project.html"),
+        manual: resolve(import.meta.dirname, "manual.html")
       }
     }
   }

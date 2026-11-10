@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f5f5f2" />
+    <meta name="description" content="Manual interactivo para armar la silla infantil de dinosaurio FabLab con uniones press-fit." />
+    <title>Silla dinosaurio | Manual FabLab</title>
+    <link rel="icon" type="image/jpeg" href="images/logofablab.jpg" />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #171a18;
+        --muted: #656a66;
+        --paper: #f5f5f2;
+        --white: #fff;
+        --line: #c9ccc6;
+        --soft-line: #e4e6e1;
+        --accent: #f2c230;
+        --success: #246246;
+        --danger: #8a3026;
+        font-family: Arial, Helvetica, sans-serif;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { min-width: 320px; min-height: 100vh; margin: 0; color: var(--ink); background: var(--paper); }
+      button, a { font: inherit; }
+      button { color: inherit; }
+      a { color: inherit; }
+      button:focus-visible, a:focus-visible { outline: 3px solid #176a9b; outline-offset: 3px; }
+      .manual-header { position: sticky; top: 0; z-index: 5; background: var(--white); border-bottom: 1px solid var(--line); }
+      .header-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; width: min(100% - 2rem, 760px); min-height: 64px; margin: 0 auto; }
+      .brand { display: inline-flex; align-items: center; gap: .65rem; text-decoration: none; }
+      .brand-mark { display: grid; width: 35px; height: 35px; place-items: center; border: 2px solid var(--ink); font-size: .72rem; font-weight: 900; letter-spacing: -.08em; }
+      .brand-copy { display: grid; gap: .1rem; }
+      .brand-copy strong { font-size: .8rem; letter-spacing: .03em; }
+      .brand-copy span { color: var(--muted); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
+      .back-link { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); font-size: .75rem; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      .progress-wrap { width: min(100% - 2rem, 760px); margin: 0 auto; padding: 0 0 .8rem; }
+      .progress-meta { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .45rem; color: var(--muted); font-size: .68rem; font-weight: 700; }
+      .progress-meta strong { color: var(--ink); }
+      .progress-track { height: 7px; overflow: hidden; background: #e5e6e2; border-radius: 20px; }
+      .progress-fill { width: 0; height: 100%; background: var(--ink); border-radius: inherit; transition: width .3s ease; }
+      main { width: min(100% - 2rem, 680px); min-height: calc(100dvh - 65px); margin: 0 auto; padding: 1.5rem 0 calc(2rem + env(safe-area-inset-bottom)); }
+      .eyebrow { color: #4b514c; font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+      .intro-heading { margin: .55rem 0 .65rem; font-size: clamp(2rem, 10vw, 3.25rem); font-weight: 900; letter-spacing: -.075em; line-height: .98; }
+      .lead { max-width: 38rem; margin: 0; color: var(--muted); font-size: .98rem; line-height: 1.55; }
+      .warning-heading, .inventory-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin: 2rem 0 .8rem; }
+      .warning-heading h2, .inventory-heading h2 { margin: 0; font-size: 1.18rem; font-weight: 900; letter-spacing: -.035em; }
+      .warning-grid { display: grid; gap: .65rem; }
+      .warning-card { display: grid; grid-template-columns: 2.7rem 1fr; align-items: center; gap: .75rem; min-height: 76px; padding: .8rem; background: var(--white); border: 1px solid var(--line); }
+      .warning-icon { display: grid; width: 42px; height: 42px; place-items: center; background: #f5f2e7; border: 1px solid #ddd6b8; }
+      .warning-icon svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+      .warning-card strong { display: block; font-size: .84rem; font-weight: 900; }
+      .warning-card p { margin: .2rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.4; }
+      .reference-heading { margin: 1.45rem 0 .65rem; font-size: .8rem; font-weight: 900; letter-spacing: -.02em; }
+      .reference-gallery { display: grid; grid-auto-columns: minmax(78%, 1fr); grid-auto-flow: column; gap: .65rem; overflow-x: auto; padding: 0 0 .4rem; scroll-snap-type: x mandatory; scrollbar-color: #9c9f98 transparent; }
+      .reference-card { min-width: 0; padding: 0; overflow: hidden; background: var(--white); border: 1px solid var(--line); text-align: left; scroll-snap-align: start; cursor: zoom-in; }
+      .reference-image { display: block; width: 100%; aspect-ratio: 1.35 / 1; background: #303641; object-fit: contain; filter: brightness(1.3) contrast(1.08); }
+      .reference-caption { display: block; padding: .6rem .7rem; font-size: .71rem; font-weight: 800; }
+      .inventory-heading { margin-top: 2.15rem; }
+      .inventory-heading p { max-width: 10rem; margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.35; text-align: right; }
+      .piece-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+      .piece-card { position: relative; display: grid; min-height: 130px; align-content: space-between; gap: 1.1rem; padding: .85rem; background: var(--white); border: 2px solid var(--line); text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; -webkit-tap-highlight-color: transparent; }
+      .piece-card:active { transform: scale(.985); }
+      .piece-card[aria-pressed="true"] { background: #f1f7f2; border-color: var(--success); }
+      .piece-topline { display: flex; justify-content: space-between; align-items: start; gap: .5rem; }
+      .piece-letter { color: var(--muted); font-size: .68rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+      .piece-check { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: transparent; font-size: 1rem; font-weight: 900; }
+      .piece-card[aria-pressed="true"] .piece-check { color: var(--white); background: var(--success); border-color: var(--success); }
+      .piece-card strong { display: block; font-size: .95rem; font-weight: 900; line-height: 1.15; }
+      .piece-card small { display: block; margin-top: .24rem; color: var(--muted); font-size: .73rem; }
+      .inventory-status { min-height: 1.5rem; margin: .7rem 0 0; color: var(--muted); font-size: .75rem; font-weight: 700; }
+      .inventory-status.complete { color: var(--success); }
+      .primary-button, .secondary-button { display: inline-flex; justify-content: center; align-items: center; gap: .5rem; min-height: 54px; padding: .85rem 1rem; border: 2px solid var(--ink); font-size: .9rem; font-weight: 900; text-align: center; text-decoration: none; cursor: pointer; transition: transform .16s ease, background .16s ease, color .16s ease; }
+      .primary-button { color: var(--white); background: var(--ink); }
+      .primary-button:hover:not(:disabled) { color: var(--ink); background: var(--accent); }
+      .primary-button:active:not(:disabled), .secondary-button:active { transform: scale(.985); }
+      .primary-button:disabled { color: #767a75; background: #dedfdb; border-color: #b7bab4; cursor: not-allowed; }
+      .secondary-button { color: var(--ink); background: var(--white); }
+      .secondary-button:hover { background: #eceee9; }
+      .intro-actions { margin-top: 1rem; }
+      .intro-actions .primary-button { width: 100%; }
+      .safety-note { margin: 1.2rem 0 0; padding: .8rem .9rem; background: #fff9e6; border-left: 4px solid var(--accent); color: #484439; font-size: .72rem; line-height: 1.5; }
+      .step-view { animation: step-in .28s ease both; }
+      @keyframes step-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+      .step-view.has-poster .step-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+      .step-view.has-poster .step-copy h2 { display: none; }
+      .step-heading { display: flex; align-items: end; gap: .8rem; margin: .5rem 0 1rem; }
+      .step-number { flex: 0 0 auto; color: #d7d9d4; font-size: clamp(4.5rem, 22vw, 7rem); font-weight: 900; letter-spacing: -.1em; line-height: .78; }
+      .step-heading-copy { padding-bottom: .25rem; }
+      .step-kicker { color: var(--muted); font-size: .67rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      .step-heading h1 { margin: .28rem 0 0; font-size: clamp(1.45rem, 7vw, 2rem); font-weight: 900; letter-spacing: -.055em; line-height: 1.05; }
+      .dino-diagram { display: block; width: 100%; height: 100%; min-height: 260px; background: linear-gradient(180deg, #fff 0%, #fbfaf6 100%); }
+      .dino-diagram .wood { fill: #e4c28d; stroke: #76572f; stroke-width: 2.5; stroke-linejoin: round; }
+      .dino-diagram .wood-edge { fill: #bd8f55; stroke: #76572f; stroke-width: 2; stroke-linejoin: round; }
+      .dino-diagram .slot { fill: #fff; stroke: #76572f; stroke-width: 1.7; }
+      .dino-diagram .grain { fill: none; stroke: #b68b55; stroke-width: 1.4; stroke-linecap: round; opacity: .8; }
+      .dino-diagram .dino-eye { fill: #fff; stroke: #30281d; stroke-width: 2; }
+      .dino-diagram .highlight { fill: none; stroke: #e2a820; stroke-width: 4; stroke-linejoin: round; opacity: 0; }
+      .dino-diagram .focus-dino .highlight { opacity: 1; }
+      .dino-diagram .focus-bars .highlight, .dino-diagram .focus-back .highlight, .dino-diagram .focus-seat .highlight { opacity: 1; }
+      .dino-diagram .part { transform-box: view-box; transform-origin: 0 0; }
+      .dino-diagram .diagram-step { fill: #171a18; font: 900 29px Arial, sans-serif; }
+      .dino-diagram .diagram-badge { fill: #f2c230; stroke: #171a18; stroke-width: 2; }
+      @keyframes assemble-in { from { transform: var(--assembly-start); } to { transform: var(--assembly-end); } }
+      .visual-frame:has(.dino-diagram) { background: #fff; }
+      .visual-frame { position: relative; display: grid; min-height: 260px; aspect-ratio: 1.12 / 1; place-items: center; overflow: hidden; background: #fff; border: 1px solid var(--line); }
+      .visual-frame > button { position: absolute; inset: 0; display: grid; width: 100%; height: 100%; place-items: center; padding: 0; background: transparent; border: 0; cursor: zoom-in; }
+      .step-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+      .zoom-hint { position: absolute; right: .65rem; bottom: .65rem; display: flex; align-items: center; gap: .35rem; padding: .42rem .55rem; background: var(--white); border: 1px solid var(--line); font-size: .65rem; font-weight: 800; pointer-events: none; }
+      .zoom-hint svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 2; }
+      .step-copy { margin-top: 1.15rem; }
+      .step-copy h2 { margin: 0 0 .45rem; font-size: 1.3rem; font-weight: 900; letter-spacing: -.04em; }
+      .step-copy p { margin: 0; color: #454a46; font-size: .9rem; line-height: 1.6; }
+      .tech-note { display: grid; grid-template-columns: 1.5rem 1fr; gap: .6rem; margin-top: .9rem; padding: .85rem; background: #eef0ec; border: 1px solid var(--soft-line); font-size: .75rem; line-height: 1.5; }
+      .tech-note strong { font-weight: 900; }
+      .tech-note-icon { font-size: 1rem; font-weight: 900; text-align: center; }
+      .wizard-footer { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: .65rem; margin: 1.2rem -1rem -1rem; padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); background: rgba(245,245,242,.96); border-top: 1px solid var(--line); backdrop-filter: blur(12px); }
+      .wizard-footer .primary-button, .wizard-footer .secondary-button { min-width: 0; min-height: 52px; padding: .7rem .45rem; font-size: .78rem; }
+      .finish-screen { padding-top: 1.4rem; text-align: center; animation: step-in .3s ease both; }
+      .finish-icon { display: grid; width: 78px; height: 78px; place-items: center; margin: .2rem auto 1.1rem; color: var(--ink); background: var(--accent); border: 2px solid var(--ink); border-radius: 50%; font-size: 2.25rem; font-weight: 900; }
+      .finish-screen h1 { margin: .55rem 0 .7rem; font-size: clamp(2rem, 10vw, 3.2rem); font-weight: 900; letter-spacing: -.07em; line-height: .98; }
+      .finish-lead { max-width: 32rem; margin: 0 auto; color: var(--muted); font-size: .95rem; line-height: 1.6; }
+      .care-card { margin: 1.6rem 0 1rem; padding: 1rem; background: var(--white); border: 1px solid var(--line); text-align: left; }
+      .care-card h2 { margin: 0 0 .75rem; font-size: 1rem; font-weight: 900; }
+      .care-list { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+      .care-list li { display: grid; grid-template-columns: 1.2rem 1fr; gap: .55rem; color: #454a46; font-size: .8rem; line-height: 1.45; }
+      .care-list li::before { content: "•"; color: var(--success); font-size: 1.1rem; font-weight: 900; line-height: 1; }
+      .finish-screen .primary-button { width: 100%; }
+      dialog { width: min(100% - 1.25rem, 900px); max-width: 900px; max-height: 94dvh; padding: .5rem; background: var(--white); border: 1px solid var(--line); box-shadow: 0 20px 70px #0005; }
+      dialog::backdrop { background: #111a; }
+      .zoom-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .25rem .25rem .6rem; }
+      .zoom-dialog-head p { margin: 0; font-size: .8rem; font-weight: 900; }
+      .dialog-close { display: grid; width: 44px; height: 44px; place-items: center; background: var(--white); border: 1px solid var(--line); font-size: 1.35rem; cursor: pointer; }
+      .zoom-dialog-image { display: block; width: 100%; max-height: calc(94dvh - 75px); object-fit: contain; background: #fff; }
+      .zoom-svg-container svg { display: block; width: 100%; max-height: calc(94dvh - 75px); aspect-ratio: 9 / 7; background: #fbfaf6; }
+      .page-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .65rem; line-height: 1.5; }
+
+      @media (min-width: 600px) {
+        main { padding-top: 2.2rem; }
+        .warning-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .warning-card { min-height: 86px; }
+        .reference-gallery { grid-auto-columns: minmax(42%, 1fr); }
+        .piece-card { min-height: 145px; padding: 1rem; }
+        .visual-frame { min-height: 400px; aspect-ratio: 1.45 / 1; }
+        .dino-diagram { min-height: 400px; }
+        .wizard-footer { margin-right: 0; margin-left: 0; padding-right: 0; padding-left: 0; background: transparent; border: 0; backdrop-filter: none; }
+        .wizard-footer .primary-button, .wizard-footer .secondary-button { font-size: .9rem; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="manual-header">
+      <div class="header-row">
+        <a class="brand" href="index.html" aria-label="FabLab I+D, volver al portafolio">
+          <span class="brand-mark" aria-hidden="true">F/L</span>
+          <span class="brand-copy"><strong>FabLab I+D</strong><span>Silla dinosaurio</span></span>
+        </a>
+        <a class="back-link" href="index.html">Portafolio ↗</a>
+      </div>
+      <div class="progress-wrap" id="progress-wrap" hidden>
+        <div class="progress-meta"><strong id="progress-label" aria-live="polite">Paso 1 de 5</strong><span id="progress-percent">20%</span></div>
+        <div class="progress-track" role="progressbar" aria-label="Progreso del armado" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" id="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="intro-screen" aria-labelledby="intro-title">
+        <span class="eyebrow">Manual de armado · Encastre press-fit</span>
+        <h1 class="intro-heading" id="intro-title" tabindex="-1">La silla dinosaurio.</h1>
+        <p class="lead">Una estructura de madera cortada en piezas planas que encajan entre sí. Mira el modelo y confirma todas las piezas antes de empezar.</p>
+
+        <h2 class="reference-heading">El diseño, en el taller y en Fusion 360</h2>
+        <div class="reference-gallery" id="reference-gallery" aria-label="Imágenes de referencia de la silla dinosaurio"></div>
+
+        <div class="warning-heading"><h2>Un armado seguro</h2></div>
+        <div class="warning-grid" id="warning-grid"></div>
+
+        <div class="inventory-heading">
+          <h2>Checklist de piezas</h2>
+          <p>Confirma cada tipo y revisa la cantidad indicada.</p>
+        </div>
+        <div class="piece-grid" id="piece-grid" aria-label="Lista de piezas"></div>
+        <p class="inventory-status" id="inventory-status" role="status" aria-live="polite"></p>
+        <div class="intro-actions">
+          <button class="primary-button" id="start-button" type="button" disabled>Revisar las piezas para continuar</button>
+        </div>
+        <p class="safety-note">Prototipo de FabLab: una persona adulta debe supervisar el armado y comprobar la estabilidad antes de sentarse. No usar si hay piezas flojas o dañadas.</p>
+      </section>
+
+      <section id="wizard-screen" aria-label="Instrucciones paso a paso" hidden>
+        <div id="step-content"></div>
+        <nav class="wizard-footer" aria-label="Navegación de pasos">
+          <button class="secondary-button" id="previous-button" type="button">← Anterior</button>
+          <button class="primary-button" id="next-button" type="button">Siguiente paso →</button>
+        </nav>
+      </section>
+
+      <section id="finish-screen" class="finish-screen" aria-labelledby="finish-title" hidden>
+        <div class="finish-icon" aria-hidden="true">✓</div>
+        <span class="eyebrow">Armado completado</span>
+        <h1 id="finish-title" tabindex="-1">¡Silla terminada!</h1>
+        <p class="finish-lead" id="finish-message"></p>
+        <div class="care-card">
+          <h2>Cuídala para que dure</h2>
+          <ul class="care-list" id="care-list"></ul>
+        </div>
+        <a class="primary-button" href="index.html">Volver al portafolio ↗</a>
+      </section>
+
+      <footer class="page-footer" id="page-footer">FabLab I+D · Manual digital de armado · Sigue siempre las indicaciones de seguridad del taller.</footer>
+    </main>
+
+    <dialog id="zoom-dialog" aria-label="Imagen ampliada del paso">
+      <div class="zoom-dialog-head">
+        <p id="zoom-caption">Detalle del paso</p>
+        <button class="dialog-close" id="zoom-close" type="button" aria-label="Cerrar imagen ampliada">×</button>
+      </div>
+      <div class="zoom-svg-container" id="zoom-svg-container" hidden></div>
+      <img class="zoom-dialog-image" id="zoom-image" alt="" />
+    </dialog>
+
+    <script>
+      // Edita aquí el inventario, las instrucciones y las imágenes de referencia.
+      const MANUAL_DATA = {
+        title: "Silla dinosaurio press-fit",
+        references: [
+          { src: "images/manual/silla-dinosaurio-terminada.png", title: "Silla terminada", alt: "Modelo 3D de la silla infantil de dinosaurio ya armada." },
+          { src: "images/manual/silla-dinosaurio-despiece.png", title: "Piezas separadas", alt: "Vista isométrica de los laterales, el asiento, el respaldo y los travesaños separados." },
+          { src: "images/manual/silla-dinosaurio-layout-fusion.png", title: "Distribución en Fusion 360", alt: "Diseño de las piezas planas de la silla dinosaurio en Fusion 360." }
+        ],
+        warnings: [
+          { icon: "surface", title: "Arma sobre una superficie plana", text: "Deja espacio alrededor para acomodar las piezas sin que se caigan." },
+          { icon: "hand", title: "No fuerces los encastres", text: "Si una unión no coincide, detente y revisa la orientación de la pieza." },
+          { icon: "help", title: "Pide ayuda si es necesario", text: "El armado debe estar supervisado por una persona adulta." },
+          { icon: "adult", title: "Revisa antes de cada uso", text: "No uses la silla si alguna pieza está suelta, agrietada o dañada." }
+        ],
+        pieces: [
+          { id: "A", name: "Laterales dinosaurio", quantity: 2 },
+          { id: "B", name: "Asiento", quantity: 1 },
+          { id: "C", name: "Respaldo central", quantity: 1 },
+          { id: "D", name: "Travesaños", quantity: 2 }
+        ],
+        steps: [
+          { title: "Alinea los dinosaurios", description: "Separa los dos laterales y ponlos en paralelo. Las siluetas deben mirar hacia el mismo lado y las ranuras quedar enfrentadas hacia adentro.", note: "Alinea las patas sobre la mesa; no apoyes un lateral encima del otro.", focus: "dino", image: "images/manual/armado-paso-1.jpg", imageAlt: "Paso 1: Alinea los dinosaurios. Vista isométrica de las piezas separadas y de las ranuras que deben coincidir.", poster: true },
+          { title: "Une los travesaños", description: "Coloca los dos travesaños entre los laterales y presenta sus pestañas en las ranuras inferiores de ambos dinosaurios.", note: "Empuja cerca de cada unión, alternando los lados. No golpees ni tuerzas la madera.", focus: "bars", image: "images/manual/armado-paso-2.jpg", imageAlt: "Paso 2: Une los travesaños. Ilustración de los travesaños encajando entre los dos laterales.", poster: true },
+          { title: "Encastra el respaldo", description: "Orienta el respaldo central con el borde curvo hacia arriba y encaja sus pestañas en las ranuras altas de los laterales.", note: "Comprueba que el respaldo quede centrado y al ras en ambos lados.", focus: "back", image: "images/manual/armado-paso-3.jpg", imageAlt: "Paso 3: Encastre del respaldo central en las ranuras posteriores de los laterales.", poster: true },
+          { title: "Coloca el asiento", description: "Alinea el asiento con las ranuras superiores de la estructura y presiónalo de forma pareja hasta que apoye en los dos laterales.", note: "Debe quedar nivelado y firme. Si no entra fácilmente, revisa la orientación antes de aplicar más presión.", focus: "seat", image: "images/manual/armado-paso-4.jpg", imageAlt: "Paso 4: Coloca el asiento encajando sus pestañas sobre la estructura armada.", poster: true },
+          { title: "Revisa y termina", description: "Pon la silla sobre el suelo y verifica las uniones de los laterales, los travesaños, el respaldo y el asiento.", note: "Antes de usarla, un adulto debe confirmar que no se balancea y que ninguna unión está floja.", focus: "check", image: "images/manual/armado-paso-5.jpg", imageAlt: "Vista final de la silla dinosaurio ya armada." }
+        ],
+        success: {
+          message: "¡Buen trabajo! Tu silla dinosaurio ya está armada. Antes de usarla, pide a una persona adulta que confirme que las uniones están firmes y que la silla se apoya estable.",
+          care: [
+            "Límpiala con un paño suave y seco; evita mojar la madera.",
+            "Mantenla lejos de la humedad, el calor y la luz solar directa.",
+            "Revisa periódicamente los encastres y deja de usarla si notas daños."
+          ]
+        }
+      };
+
+      const ICONS = {
+        surface: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18M5 18V9h14v9M8 9V6h8v3M7 14h10"/></svg>',
+        hand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v5c0 4-2.5 7-6.5 7h-1c-2 0-3.5-.8-4.8-2.3L4 14a1.7 1.7 0 0 1 2.4-2.4L8 13"/></svg>',
+        help: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.7 1.2c-.8 1.2-2.3 1.5-2.3 3M12 17.5v.1"/></svg>',
+        adult: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><path d="M7 21v-5l2-5h6l2 5v5M9 11l-3 3m9-3 3 3M9 16h6"/></svg>'
+      };
+
+      const checkedPieces = new Set();
+      let stepIndex = 0;
+      const introScreen = document.getElementById("intro-screen");
+      const wizardScreen = document.getElementById("wizard-screen");
+      const finishScreen = document.getElementById("finish-screen");
+      const progressWrap = document.getElementById("progress-wrap");
+      const pieceGrid = document.getElementById("piece-grid");
+      const stepContent = document.getElementById("step-content");
+      const zoomDialog = document.getElementById("zoom-dialog");
+      const zoomImage = document.getElementById("zoom-image");
+      const zoomSvgContainer = document.getElementById("zoom-svg-container");
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+        })[character]);
+      }
+
+      const DINOSAUR_SIDE = "M 24 226 L24 126 C16 121 18 115 26 110 C17 105 18 98 27 93 C18 88 20 80 29 76 C25 65 31 54 42 49 C52 45 67 49 75 58 L80 68 Q71 78 73 91 L78 132 L164 140 Q185 143 190 162 L190 226 L161 226 L161 204 L137 204 L137 226 L88 226 L88 204 L60 204 L60 226 Z";
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function partGroup(name, finalPosition, explodedPosition, assemblyStage, contents) {
+        const assembled = stepIndex >= assemblyStage;
+        const entering = stepIndex === assemblyStage;
+        const animate = entering && !prefersReducedMotion;
+        const position = assembled || entering && prefersReducedMotion ? finalPosition : explodedPosition;
+        const toCssTranslate = value => {
+          const [x, y] = value.split(" ");
+          return `translate(${x}px, ${y}px)`;
+        };
+        const animation = animate
+          ? `style="--assembly-start:${toCssTranslate(explodedPosition)};--assembly-end:${toCssTranslate(finalPosition)};animation:assemble-in .72s cubic-bezier(.2,.8,.2,1) .04s both"`
+          : `transform="translate(${position})"`;
+        const focus = MANUAL_DATA.steps[stepIndex].focus;
+        const focusClass = (name === "dino-side" && focus === "dino")
+          || (name === "crossbars" && focus === "bars")
+          || (name === "backrest" && focus === "back")
+          || (name === "seat" && focus === "seat") ? ` focus-${focus}` : "";
+        return `<g class="part ${name}${focusClass}" ${animation}>${contents}</g>`;
+      }
+
+      function sidePanelMarkup() {
+        return `<path class="wood-edge" d="${DINOSAUR_SIDE}" transform="translate(7 5)" />
+          <path class="wood" d="${DINOSAUR_SIDE}" />
+          <path class="highlight" d="${DINOSAUR_SIDE}" />
+          <circle class="dino-eye" cx="59" cy="59" r="4" />
+          <path class="grain" d="M40 143h22m42 18h20m-83 19h24m45 1h22" />
+          <rect class="slot" x="48" y="83" width="7" height="18" rx="1" />
+          <rect class="slot" x="48" y="111" width="7" height="17" rx="1" />
+          <rect class="slot" x="98" y="158" width="24" height="5" rx="1" />
+          <rect class="slot" x="143" y="164" width="24" height="5" rx="1" />
+          <rect class="slot" x="98" y="184" width="24" height="5" rx="1" />
+          <rect class="slot" x="143" y="190" width="24" height="5" rx="1" />`;
+      }
+
+      function renderDinosaurDiagram(index) {
+        const stepNumber = String(index + 1).padStart(2, "0");
+        const backSide = partGroup("dino-side", "95 8", "158 -3", 0, sidePanelMarkup());
+        const frontSide = partGroup("dino-side", "38 18", "6 30", 0, sidePanelMarkup());
+        const railMarkup = (second = false) => `<path class="wood-edge" d="M 0 0 L77 -9 L94 1 L17 12 Z" transform="translate(4 5)" />
+          <path class="wood" d="M 0 0 L77 -9 L94 1 L17 12 Z" />
+          <path class="wood-edge" d="M17 12 L94 1 L94 8 L17 19 Z" />
+          <path class="highlight" d="M 0 0 L77 -9 L94 1 L17 12 Z" />`;
+        const rails = `${partGroup("crossbars", "86 157", "214 178", 1, railMarkup())}
+          ${partGroup("crossbars", "77 185", "7 199", 1, railMarkup(true))}`;
+        const backMarkup = `<path class="wood-edge" d="M0 10 Q37 -2 79 9 L79 81 L0 88 Z" transform="translate(6 5)" />
+          <path class="wood" d="M0 10 Q37 -2 79 9 L79 81 L0 88 Z" />
+          <path class="highlight" d="M0 10 Q37 -2 79 9 L79 81 L0 88 Z" />
+          <rect class="slot" x="12" y="77" width="13" height="5" rx="1" />
+          <rect class="slot" x="55" y="78" width="13" height="5" rx="1" />
+          <path class="grain" d="M14 30h43m-43 8h43" />`;
+        const backrest = partGroup("backrest", "111 54", "237 98", 2, backMarkup);
+        const seatMarkup = `<path class="wood-edge" d="M0 6 L86 0 L111 16 L24 23 Z" transform="translate(5 5)" />
+          <path class="wood" d="M0 6 L86 0 L111 16 L24 23 Z" />
+          <path class="wood-edge" d="M24 23 L111 16 L111 24 L24 31 Z" />
+          <path class="wood-edge" d="M0 6 L24 23 L24 31 L0 14 Z" />
+          <path class="highlight" d="M0 6 L86 0 L111 16 L24 23 Z" />
+          <path class="grain" d="m19 10 69-5m-57 13 70-6" />`;
+        const seat = partGroup("seat", "91 128", "139 210", 3, seatMarkup);
+        const checkBadge = index === 4 ? `<g transform="translate(306 28)"><circle class="diagram-badge" r="19" /><path d="m-8 0 5 5 11-12" fill="none" stroke="#171a18" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g>` : "";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" id="step-diagram" class="dino-diagram" viewBox="0 0 360 280" role="img" aria-label="Diagrama animado de armado de silla dinosaurio, paso ${index + 1}">
+          <style>
+            .wood{fill:#e4c28d;stroke:#76572f;stroke-width:2.5;stroke-linejoin:round}
+            .wood-edge{fill:#bd8f55;stroke:#76572f;stroke-width:2;stroke-linejoin:round}
+            .slot{fill:#fff;stroke:#76572f;stroke-width:1.7}
+            .grain{fill:none;stroke:#b68b55;stroke-width:1.4;stroke-linecap:round;opacity:.8}
+            .dino-eye{fill:#fff;stroke:#30281d;stroke-width:2}
+            .highlight{fill:none;stroke:#e2a820;stroke-width:4;stroke-linejoin:round;opacity:0}
+            .focus-dino .highlight,.focus-bars .highlight,.focus-back .highlight,.focus-seat .highlight{opacity:1}
+            .diagram-step{fill:#171a18;font:900 29px Arial,sans-serif}
+            .diagram-badge{fill:#f2c230;stroke:#171a18;stroke-width:2}
+          </style>
+          <rect width="360" height="280" fill="#fbfaf6"/>
+          <path d="M32 248H328" fill="none" stroke="#d8d8d1" stroke-width="2"/>
+          <ellipse cx="153" cy="233" rx="105" ry="12" fill="#171a18" opacity=".07"/>
+          <g class="diagram-parts">${backSide}${backrest}${rails}${seat}${frontSide}</g>
+          <g transform="translate(307 27)"><circle class="diagram-badge" r="19"/><text class="diagram-step" x="0" y="10" text-anchor="middle">${index + 1}</text></g>
+          ${checkBadge}
+        </svg>`;
+        return svg;
+      }
+
+      function renderReferences() {
+        document.getElementById("reference-gallery").innerHTML = MANUAL_DATA.references.map((reference, index) => `
+          <button class="reference-card" type="button" data-zoom-src="${escapeHtml(reference.src)}" data-zoom-alt="${escapeHtml(reference.alt)}" data-zoom-caption="${escapeHtml(reference.title)}">
+            <img class="reference-image" src="${escapeHtml(reference.src)}" alt="${escapeHtml(reference.alt)}" loading="${index === 0 ? "eager" : "lazy"}" />
+            <span class="reference-caption">${escapeHtml(reference.title)} · Toca para ampliar</span>
+          </button>`).join("");
+      }
+
+      function renderWarnings() {
+        document.getElementById("warning-grid").innerHTML = MANUAL_DATA.warnings.map(item => `
+          <article class="warning-card">
+            <span class="warning-icon">${ICONS[item.icon] || ICONS.help}</span>
+            <span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.text)}</p></span>
+          </article>`).join("");
+      }
+
+      function renderInventory() {
+        pieceGrid.innerHTML = MANUAL_DATA.pieces.map(piece => {
+          const checked = checkedPieces.has(piece.id);
+          return `<button class="piece-card" type="button" data-piece="${escapeHtml(piece.id)}" aria-pressed="${checked}" aria-label="Pieza ${escapeHtml(piece.id)}: ${escapeHtml(piece.name)}, cantidad ${piece.quantity}${checked ? ", confirmada" : ", pendiente"}">
+            <span class="piece-topline"><span class="piece-letter">Pieza ${escapeHtml(piece.id)}</span><span class="piece-check" aria-hidden="true">✓</span></span>
+            <span><strong>${escapeHtml(piece.name)}</strong><small>× ${escapeHtml(piece.quantity)} ${piece.quantity === 1 ? "unidad" : "unidades"}</small></span>
+          </button>`;
+        }).join("");
+
+        const status = document.getElementById("inventory-status");
+        const ready = checkedPieces.size === MANUAL_DATA.pieces.length;
+        const totalPieces = MANUAL_DATA.pieces.reduce((total, piece) => total + piece.quantity, 0);
+        status.textContent = ready
+          ? `¡Todo listo! Confirmaste las ${totalPieces} piezas.`
+          : `Tipos confirmados: ${checkedPieces.size} de ${MANUAL_DATA.pieces.length} · ${totalPieces} piezas en total.`;
+        status.classList.toggle("complete", ready);
+        const startButton = document.getElementById("start-button");
+        startButton.disabled = !ready;
+        startButton.textContent = ready ? "Empezar armado →" : "Revisar las piezas para continuar";
+      }
+
+      function setScreen(screen) {
+        introScreen.hidden = screen !== "intro";
+        wizardScreen.hidden = screen !== "wizard";
+        finishScreen.hidden = screen !== "finish";
+        progressWrap.hidden = screen !== "wizard";
+        document.getElementById("page-footer").hidden = screen === "finish";
+      }
+
+      function updateProgress() {
+        const count = MANUAL_DATA.steps.length;
+        const current = stepIndex + 1;
+        const percent = Math.round(current / count * 100);
+        document.getElementById("progress-label").textContent = `Paso ${current} de ${count}`;
+        document.getElementById("progress-percent").textContent = `${percent}%`;
+        document.getElementById("progress-fill").style.width = `${percent}%`;
+        const track = document.getElementById("progress-track");
+        track.setAttribute("aria-valuemax", String(count));
+        track.setAttribute("aria-valuenow", String(current));
+      }
+
+      function renderStep() {
+        const step = MANUAL_DATA.steps[stepIndex];
+        const diagramSource = renderDinosaurDiagram(stepIndex);
+        const visualMarkup = step.image
+          ? `<img class="step-image" id="step-image" src="${escapeHtml(step.image)}" alt="${escapeHtml(step.imageAlt || `Diagrama técnico del paso ${stepIndex + 1}: ${step.title}`)}" />`
+          : diagramSource;
+        const lastStep = stepIndex === MANUAL_DATA.steps.length - 1;
+        stepContent.innerHTML = `
+          <article class="step-view${step.poster ? " has-poster" : ""}" aria-labelledby="step-title">
+            <div class="step-heading">
+              <span class="step-number" aria-hidden="true">${String(stepIndex + 1).padStart(2, "0")}</span>
+              <div class="step-heading-copy"><span class="step-kicker">Armado · ${escapeHtml(MANUAL_DATA.title)}</span><h1 id="step-title" tabindex="-1">${escapeHtml(step.title)}</h1></div>
+            </div>
+            <div class="visual-frame">
+              <button type="button" id="zoom-button" aria-label="Ampliar imagen del paso ${stepIndex + 1}">
+                ${visualMarkup}
+                <span class="zoom-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5M10.8 7.5v6.6M7.5 10.8h6.6"/></svg>Toca para ampliar</span>
+              </button>
+            </div>
+            <div class="step-copy"><h2>${escapeHtml(step.title)}</h2><p>${escapeHtml(step.description)}</p></div>
+            <div class="tech-note"><span class="tech-note-icon" aria-hidden="true">!</span><p><strong>Nota técnica</strong><br>${escapeHtml(step.note)}</p></div>
+          </article>`;
+
+        const image = document.getElementById("step-image");
+        if (image) {
+          image.dataset.fallback = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(diagramSource)}`;
+          image.addEventListener("error", () => {
+            if (image.dataset.usedFallback === "true") return;
+            image.dataset.usedFallback = "true";
+            image.src = image.dataset.fallback;
+          });
+        }
+        document.getElementById("zoom-button").addEventListener("click", () => {
+          if (image) {
+            openZoom(image.currentSrc || image.src, image.alt, `Paso ${stepIndex + 1}: ${step.title}`);
+            return;
+          }
+          const diagram = document.getElementById("step-diagram");
+          const zoomMarkup = diagram.outerHTML.replace(' id="step-diagram"', "");
+          openZoom(null, diagram.getAttribute("aria-label"), `Paso ${stepIndex + 1}: ${step.title}`, zoomMarkup);
+        });
+        document.getElementById("previous-button").textContent = stepIndex === 0 ? "← Inventario" : "← Anterior";
+        const nextButton = document.getElementById("next-button");
+        nextButton.textContent = lastStep ? "¡Silla terminada! ✓" : "Siguiente paso →";
+        nextButton.setAttribute("aria-label", lastStep ? "Terminar armado" : "Ir al siguiente paso");
+        updateProgress();
+      }
+
+      function openWizard() {
+        stepIndex = 0;
+        setScreen("wizard");
+        renderStep();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("step-title").focus({ preventScroll: true });
+      }
+
+      function showStep(nextIndex) {
+        if (nextIndex < 0) {
+          setScreen("intro");
+          renderInventory();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          document.getElementById("intro-title").focus({ preventScroll: true });
+          return;
+        }
+        if (nextIndex >= MANUAL_DATA.steps.length) {
+          showFinish();
+          return;
+        }
+        stepIndex = nextIndex;
+        renderStep();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("step-title").focus({ preventScroll: true });
+      }
+
+      function showFinish() {
+        setScreen("finish");
+        document.getElementById("finish-message").textContent = MANUAL_DATA.success.message;
+        document.getElementById("care-list").innerHTML = MANUAL_DATA.success.care.map(tip => `<li>${escapeHtml(tip)}</li>`).join("");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("finish-title").focus({ preventScroll: true });
+      }
+
+      function openZoom(source, alt, caption, svgMarkup = null) {
+        zoomImage.hidden = Boolean(svgMarkup);
+        zoomSvgContainer.hidden = !svgMarkup;
+        if (svgMarkup) {
+          zoomSvgContainer.innerHTML = svgMarkup;
+        } else {
+          zoomImage.src = source;
+          zoomImage.alt = alt;
+          zoomSvgContainer.innerHTML = "";
+        }
+        document.getElementById("zoom-caption").textContent = caption;
+        if (typeof zoomDialog.showModal === "function") zoomDialog.showModal();
+      }
+
+      renderWarnings();
+      renderReferences();
+      renderInventory();
+      document.getElementById("start-button").addEventListener("click", openWizard);
+      document.getElementById("reference-gallery").addEventListener("click", event => {
+        const button = event.target.closest("[data-zoom-src]");
+        if (!button) return;
+        openZoom(button.dataset.zoomSrc, button.dataset.zoomAlt, button.dataset.zoomCaption);
+      });
+      pieceGrid.addEventListener("click", event => {
+        const button = event.target.closest("[data-piece]");
+        if (!button) return;
+        const id = button.dataset.piece;
+        checkedPieces.has(id) ? checkedPieces.delete(id) : checkedPieces.add(id);
+        renderInventory();
+      });
+      document.getElementById("previous-button").addEventListener("click", () => showStep(stepIndex - 1));
+      document.getElementById("next-button").addEventListener("click", () => showStep(stepIndex + 1));
+      document.getElementById("zoom-close").addEventListener("click", () => zoomDialog.close());
+      zoomDialog.addEventListener("click", event => {
+        if (event.target === zoomDialog) zoomDialog.close();
+      });
+      window.addEventListener("keydown", event => {
+        if (zoomDialog.open || wizardScreen.hidden || (event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|BUTTON|A)$/.test(event.target.tagName))) return;
+        if (event.key === "ArrowRight") showStep(stepIndex + 1);
+        if (event.key === "ArrowLeft") showStep(stepIndex - 1);
+      });
+
+      let touchStart = null;
+      wizardScreen.addEventListener("touchstart", event => {
+        if (event.touches.length === 1) touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      }, { passive: true });
+      wizardScreen.addEventListener("touchend", event => {
+        if (!touchStart || !event.changedTouches.length) return;
+        const dx = event.changedTouches[0].clientX - touchStart.x;
+        const dy = event.changedTouches[0].clientY - touchStart.y;
+        if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.3) showStep(stepIndex + (dx < 0 ? 1 : -1));
+        touchStart = null;
+      }, { passive: true });
+    </script>
+  </body>
+</html>
