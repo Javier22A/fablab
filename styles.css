@@ -365,3 +365,134 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .tech-heading-fallback,
   .hero-panel h2 .tech-heading-fallback { min-height: 0; }
 }
+
+.button-sm {
+  padding: .45rem .75rem;
+  font-size: .7rem;
+  border-radius: .42rem;
+}
+
+.page-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: .8rem 1.2rem;
+}
+
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.heading-admin-popover-wrap {
+  max-width: 360px;
+  margin-top: .75rem;
+}
+
+.week-admin-popover {
+  display: grid;
+  gap: .45rem;
+  padding: .85rem;
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  box-shadow: 0 10px 26px rgba(23, 35, 46, .08);
+}
+
+.week-admin-popover .field-label {
+  margin: .15rem 0 .1rem;
+}
+
+.week-admin-preview {
+  color: var(--muted);
+  font: .66rem 'DM Mono', monospace;
+}
+
+.week-admin-preview strong {
+  color: var(--steel);
+}
+
+.week-admin-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .45rem;
+  margin-top: .35rem;
+}
+
+.week-admin-actions .button {
+  padding: .48rem .75rem;
+  font-size: .7rem;
+}
+
+.transfer-mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .25rem;
+  padding: .22rem;
+  background: var(--pale-blue);
+  border: 1px solid var(--line);
+  border-radius: .42rem;
+}
+
+.transfer-mode-btn {
+  padding: .38rem .65rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: .3rem;
+  font-size: .7rem;
+  font-weight: 700;
+  transition: background .18s ease, color .18s ease;
+}
+
+.transfer-mode-btn.active {
+  color: #fff;
+  background: var(--steel);
+}
+
+.transfer-mode-btn:hover:not(.active):not(:disabled) {
+  color: var(--steel);
+  background: rgba(255, 255, 255, .6);
+}
+
+.entry-actions {
+  flex-wrap: wrap;
+}
+
+.entry-transfer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .7rem;
+  margin-top: .85rem;
+  padding: .8rem .95rem;
+  background: rgba(234, 243, 247, .65);
+  border: 1px solid var(--line);
+  border-radius: .45rem;
+}
+
+.entry-transfer-select-label {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 1 1 200px;
+  color: var(--steel);
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.entry-transfer-select-label .form-control {
+  padding: .45rem .65rem;
+  font-size: .74rem;
+}
+
+.entry-transfer-actions {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin-left: auto;
+}

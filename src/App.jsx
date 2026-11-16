@@ -19,13 +19,60 @@ const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
 const DEFAULT_TABS = [
-  { id: "portada", title: "Portada General", isDeletable: false, entries: [] },
-  { id: "semana-1", title: "Semana 01", isDeletable: true, entries: [] },
+  { id: "portada", title: "Portada General", isDeletable: false, sortOrder: 0, entries: [] },
+  { id: "semana-1", title: "Semana 01", isDeletable: true, sortOrder: 1, entries: [] },
 ];
 const TEAM = ["Javier Abad", "Steven Giron", "Francisco Siguenza", "Juan Pablo Quinteros"];
 
 function newId() {
   return globalThis.crypto?.randomUUID?.() || `entry-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getWeekNumber(tab) {
+  if (!tab || tab.id === "portada") return 0;
+  const match = String(tab.title || "").match(/(\d+)/);
+  if (match) return Number(match[1]);
+  return typeof tab.sortOrder === "number" && tab.sortOrder > 0 ? tab.sortOrder : 1;
+}
+
+function formatWeekTitle(weekNumber) {
+  return `Semana ${String(weekNumber).padStart(2, "0")}`;
+}
+
+function sortTabs(tabList) {
+  return [...tabList].sort((a, b) => {
+    if (a.id === "portada") return -1;
+    if (b.id === "portada") return 1;
+    const orderA = a.sortOrder ?? getWeekNumber(a);
+    const orderB = b.sortOrder ?? getWeekNumber(b);
+    if (orderA !== orderB) return orderA - orderB;
+    return String(a.title || "").localeCompare(String(b.title || ""), "es", { numeric: true });
+  });
+}
+
+function persistLocalTabs(tabList) {
+  if (supabaseClient) return;
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify({ tabs: tabList }));
+  } catch (error) {
+    console.error("No se pudo guardar el estado local de las semanas.", error);
+  }
+}
+
+function filterUnreferencedPaths(candidatePaths, currentTabs, { excludeEntryId = null, excludeTabId = null } = {}) {
+  const uniqueCandidates = [...new Set((candidatePaths || []).filter(Boolean))];
+  if (!uniqueCandidates.length) return [];
+  const referencedElsewhere = new Set();
+  for (const tab of currentTabs || []) {
+    if (excludeTabId && tab.id === excludeTabId) continue;
+    for (const entry of tab.entries || []) {
+      if (excludeEntryId && entry.id === excludeEntryId) continue;
+      for (const block of entry.blocks || []) {
+        if (block?.storagePath) referencedElsewhere.add(block.storagePath);
+      }
+    }
+  }
+  return uniqueCandidates.filter(path => !referencedElsewhere.has(path));
 }
 
 function makeBlock(type) {
@@ -41,7 +88,13 @@ function readLegacyData() {
   try {
     const stored = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
     if (!stored?.tabs?.length) return { tabs: DEFAULT_TABS };
-    return { tabs: stored.tabs.map(tab => ({ ...tab, entries: (tab.entries || []).map(normalizeEntry) })) };
+    return {
+      tabs: sortTabs(stored.tabs.map(tab => ({
+        ...tab,
+        sortOrder: tab.sortOrder ?? getWeekNumber(tab),
+        entries: (tab.entries || []).map(normalizeEntry),
+      }))),
+    };
   } catch {
     return { tabs: DEFAULT_TABS };
   }
@@ -92,10 +145,177 @@ function blockForStorage(block, uploadedMedia) {
   return { id: block.id, type: "comparison", title: block.title, ideas: block.ideas.map(idea => ({ ...idea })) };
 }
 
-function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTab, onDeleteTab, entries, editor, loading, teamMembers, deletionInProgress, deletingTabId }) {
+function HomePage({
+  tabs,
+  activeTabId,
+  setActiveTabId,
+  authenticated,
+  onCreateTab,
+  onDeleteTab,
+  onUpdateWeekNumber,
+  onTransferEntries,
+  transferBusy,
+  entries,
+  editor,
+  loading,
+  teamMembers,
+  deletionInProgress,
+  deletingTabId,
+}) {
   const currentTab = tabs.find(tab => tab.id === activeTabId);
   const deletingTab = tabs.find(tab => tab.id === deletingTabId);
   const allEntries = tabs.reduce((count, tab) => count + tab.entries.length, 0);
+  const isEditableWeek = Boolean(currentTab && currentTab.id !== "portada");
+  const otherWeekTabs = tabs.filter(tab => tab.id !== "portada" && tab.id !== activeTabId);
+  const nextAutoWeekNumber = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0) + 1;
+  const nextAutoWeekLabel = formatWeekTitle(nextAutoWeekNumber);
+
+  const [isEditingWeek, setIsEditingWeek] = useState(false);
+  const [weekNumberInput, setWeekNumberInput] = useState("");
+  const [savingWeekNumber, setSavingWeekNumber] = useState(false);
+  const [isTransferringWeek, setIsTransferringWeek] = useState(false);
+  const [weekTransferMode, setWeekTransferMode] = useState("copy");
+  const [weekTransferTargetId, setWeekTransferTargetId] = useState("");
+  const [panelLocation, setPanelLocation] = useState("sidebar");
+
+  useEffect(() => {
+    setIsEditingWeek(false);
+    setIsTransferringWeek(false);
+  }, [activeTabId]);
+
+  useEffect(() => {
+    if (!isTransferringWeek) return;
+    if (!weekTransferTargetId || (weekTransferTargetId !== "__new__" && !otherWeekTabs.some(tab => tab.id === weekTransferTargetId))) {
+      setWeekTransferTargetId(otherWeekTabs[0]?.id || "__new__");
+    }
+  }, [isTransferringWeek, otherWeekTabs, weekTransferTargetId]);
+
+  function openWeekEditor(location = "sidebar") {
+    if (!currentTab) return;
+    if (isEditingWeek && panelLocation === location) {
+      setIsEditingWeek(false);
+      return;
+    }
+    setPanelLocation(location);
+    setIsTransferringWeek(false);
+    setWeekNumberInput(String(getWeekNumber(currentTab) || 1));
+    setIsEditingWeek(true);
+  }
+
+  function openWeekTransfer(location = "sidebar") {
+    if (!currentTab?.entries?.length) return;
+    if (isTransferringWeek && panelLocation === location) {
+      setIsTransferringWeek(false);
+      return;
+    }
+    setPanelLocation(location);
+    setIsEditingWeek(false);
+    setWeekTransferMode("copy");
+    setWeekTransferTargetId(otherWeekTabs[0]?.id || "__new__");
+    setIsTransferringWeek(true);
+  }
+
+  async function submitWeekNumber(event) {
+    event.preventDefault();
+    if (!currentTab || savingWeekNumber) return;
+    setSavingWeekNumber(true);
+    try {
+      const ok = await onUpdateWeekNumber(currentTab.id, weekNumberInput);
+      if (ok) setIsEditingWeek(false);
+    } finally {
+      setSavingWeekNumber(false);
+    }
+  }
+
+  async function submitWeekTransfer(event) {
+    event.preventDefault();
+    if (!currentTab?.entries?.length || transferBusy) return;
+    const entryIds = currentTab.entries.map(entry => entry.id);
+    const ok = await onTransferEntries({
+      entryIds,
+      sourceTabId: currentTab.id,
+      targetTabId: weekTransferTargetId || "__new__",
+      mode: weekTransferMode,
+    });
+    if (ok) setIsTransferringWeek(false);
+  }
+
+  const parsedPreviewNumber = Number.parseInt(String(weekNumberInput).trim(), 10);
+  const previewWeekTitle = Number.isInteger(parsedPreviewNumber) && parsedPreviewNumber >= 1 && parsedPreviewNumber <= 999
+    ? formatWeekTitle(parsedPreviewNumber)
+    : null;
+
+  function renderWeekEditorForm(idPrefix) {
+    return (
+      <form className="week-admin-popover animate-in" onSubmit={submitWeekNumber}>
+        <label className="field-label" htmlFor={`${idPrefix}WeekNumber`}>Nuevo número de semana</label>
+        <input
+          id={`${idPrefix}WeekNumber`}
+          className="form-control"
+          type="number"
+          min={1}
+          max={999}
+          required
+          value={weekNumberInput}
+          onChange={event => setWeekNumberInput(event.target.value)}
+          disabled={savingWeekNumber}
+        />
+        {previewWeekTitle && <small className="week-admin-preview">Se mostrará como <strong>{previewWeekTitle}</strong></small>}
+        <div className="week-admin-actions">
+          <button className="button button-ghost" type="button" disabled={savingWeekNumber} onClick={() => setIsEditingWeek(false)}>Cancelar</button>
+          <button className="button button-primary" type="submit" disabled={savingWeekNumber || !previewWeekTitle}>
+            {savingWeekNumber ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  function renderWeekTransferForm(idPrefix) {
+    return (
+      <form className="week-admin-popover animate-in" onSubmit={submitWeekTransfer}>
+        <span className="field-label">Acción con los {currentTab.entries.length} registros</span>
+        <div className="transfer-mode-switch" role="group" aria-label="Modo de transferencia">
+          <button
+            type="button"
+            className={`transfer-mode-btn ${weekTransferMode === "copy" ? "active" : ""}`}
+            onClick={() => setWeekTransferMode("copy")}
+            disabled={transferBusy}
+          >
+            Copiar
+          </button>
+          <button
+            type="button"
+            className={`transfer-mode-btn ${weekTransferMode === "move" ? "active" : ""}`}
+            onClick={() => setWeekTransferMode("move")}
+            disabled={transferBusy}
+          >
+            Mover
+          </button>
+        </div>
+        <label className="field-label" htmlFor={`${idPrefix}TransferTarget`}>Semana destino</label>
+        <select
+          id={`${idPrefix}TransferTarget`}
+          className="form-control"
+          value={weekTransferTargetId}
+          onChange={event => setWeekTransferTargetId(event.target.value)}
+          disabled={transferBusy}
+        >
+          {otherWeekTabs.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.title}</option>
+          ))}
+          <option value="__new__">+ Crear {nextAutoWeekLabel}</option>
+        </select>
+        <div className="week-admin-actions">
+          <button className="button button-ghost" type="button" disabled={transferBusy} onClick={() => setIsTransferringWeek(false)}>Cancelar</button>
+          <button className="button button-primary" type="submit" disabled={transferBusy}>
+            {transferBusy ? "Procesando…" : weekTransferMode === "move" ? "Mover todo" : "Copiar todo"}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegación del proyecto">
@@ -107,7 +327,30 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
         {authenticated && (
           <div className="sidebar-section admin-controls">
             <span className="eyebrow">Gestión</span>
-            <button className="button button-secondary button-wide" type="button" disabled={deletionInProgress} onClick={onCreateTab}>+ Añadir semana</button>
+            <button className="button button-secondary button-wide" type="button" disabled={deletionInProgress || transferBusy} onClick={onCreateTab}>+ Añadir semana</button>
+            {isEditableWeek && (
+              <>
+                <button
+                  className="button button-secondary button-wide"
+                  type="button"
+                  disabled={deletionInProgress || transferBusy || savingWeekNumber}
+                  onClick={() => openWeekEditor("sidebar")}
+                >
+                  {isEditingWeek && panelLocation === "sidebar" ? "Cerrar edición de N.º" : "Editar N.º de semana"}
+                </button>
+                {isEditingWeek && panelLocation === "sidebar" && renderWeekEditorForm("sidebar")}
+                <button
+                  className="button button-secondary button-wide"
+                  type="button"
+                  disabled={!currentTab?.entries?.length || deletionInProgress || transferBusy || Boolean(entries.pendingEntryOrders[activeTabId])}
+                  onClick={() => openWeekTransfer("sidebar")}
+                  title={!currentTab?.entries?.length ? "Esta semana aún no tiene registros para copiar o mover" : undefined}
+                >
+                  {isTransferringWeek && panelLocation === "sidebar" ? "Cerrar copiar / mover" : "Copiar / mover semana"}
+                </button>
+                {isTransferringWeek && panelLocation === "sidebar" && renderWeekTransferForm("sidebar")}
+              </>
+            )}
             {deletingTabId
               ? <p className="delete-progress" role="status">Eliminando {deletingTab?.title || "semana"}…</p>
               : <DeleteFuseButton
@@ -115,7 +358,7 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
                   label="Eliminar semana actual"
                   size="md"
                   fullWidth
-                  disabled={!currentTab?.isDeletable || deletionInProgress}
+                  disabled={!currentTab?.isDeletable || deletionInProgress || transferBusy}
                   onCommit={() => { if (currentTab) void onDeleteTab(currentTab.id); }}
                 />}
           </div>
@@ -125,7 +368,41 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
       <main className="main-content">
         {loading ? <div className="public-empty animate-in" role="status"><span className="empty-icon">◌</span><h3>Cargando la bitácora</h3><p>Conectando con Supabase para traer semanas y registros.</p></div> : activeTabId === "portada" ? <HomeLanding weekCount={tabs.length - 1} entryCount={allEntries} teamMembers={teamMembers} /> : (
           <>
-            <div className="page-heading animate-in"><span className="eyebrow">Registro semanal</span><h2>{currentTab?.title || "Semana"}</h2><span className="heading-line" /></div>
+            <div className="page-heading animate-in">
+              <span className="eyebrow">Registro semanal</span>
+              <div className="page-heading-row">
+                <h2>{currentTab?.title || "Semana"}</h2>
+                {authenticated && isEditableWeek && (
+                  <div className="page-heading-actions">
+                    <button
+                      className="button button-secondary button-sm"
+                      type="button"
+                      disabled={deletionInProgress || transferBusy || savingWeekNumber}
+                      onClick={() => openWeekEditor("heading")}
+                    >
+                      {isEditingWeek && panelLocation === "heading" ? "Cerrar edición de N.º" : "Editar N.º"}
+                    </button>
+                    {currentTab?.entries?.length > 0 && (
+                      <button
+                        className="button button-secondary button-sm"
+                        type="button"
+                        disabled={deletionInProgress || transferBusy || Boolean(entries.pendingEntryOrders[activeTabId])}
+                        onClick={() => openWeekTransfer("heading")}
+                      >
+                        {isTransferringWeek && panelLocation === "heading" ? "Cerrar copiar / mover" : "Copiar / mover semana"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <span className="heading-line" />
+              {authenticated && isEditableWeek && isEditingWeek && panelLocation === "heading" && (
+                <div className="heading-admin-popover-wrap">{renderWeekEditorForm("heading")}</div>
+              )}
+              {authenticated && isEditableWeek && isTransferringWeek && panelLocation === "heading" && (
+                <div className="heading-admin-popover-wrap">{renderWeekTransferForm("heading")}</div>
+              )}
+            </div>
             <Suspense fallback={<p className="drop-hint" role="status">Cargando publicaciones…</p>}>
               <EntryList
                 authenticated={authenticated}
@@ -136,6 +413,15 @@ function HomePage({ tabs, activeTabId, setActiveTabId, authenticated, onCreateTa
                   orderSaving: entries.savingEntryOrder,
                   reorder: entries.reorder,
                   saveOrder: entries.saveOrder,
+                  otherWeeks: otherWeekTabs,
+                  nextWeekLabel: nextAutoWeekLabel,
+                  transferBusy,
+                  onTransferEntry: (entry, targetTabId, mode) => onTransferEntries({
+                    entryIds: [entry.id],
+                    sourceTabId: activeTabId,
+                    targetTabId,
+                    mode,
+                  }),
                 }}
               />
             </Suspense>
@@ -216,6 +502,7 @@ export default function App({ page = "home" }) {
   const [deletionInProgress, setDeletionInProgress] = useState(false);
   const [pendingEntryOrders, setPendingEntryOrders] = useState({});
   const [savingEntryOrder, setSavingEntryOrder] = useState(false);
+  const [transferBusy, setTransferBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -238,7 +525,7 @@ export default function App({ page = "home" }) {
       const [tabsResult, entriesResult, aboutResult] = await Promise.all([
         supabaseClient.from("tabs").select("id, title, is_deletable, sort_order").order("sort_order", { ascending: true }),
         supabaseClient.from("entries").select("id, tab_id, title, blocks, created_at, sort_order").order("tab_id", { ascending: true }).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
-        supabaseClient.from("site_pages").select("content").eq("slug", "about").maybeSingle(),
+      aboutResultPromise(),
       ]);
       if (!mounted) return;
       if (tabsResult.error || entriesResult.error) {
@@ -249,7 +536,7 @@ export default function App({ page = "home" }) {
       }
 
       const entries = entriesResult.data.map((entry, index) => ({ id: entry.id, tabId: entry.tab_id, title: entry.title, blocks: Array.isArray(entry.blocks) ? entry.blocks : [], createdAt: entry.created_at, sortOrder: entry.sort_order ?? index }));
-      setTabs(tabsResult.data.map(tab => ({ id: tab.id, title: tab.title, isDeletable: tab.is_deletable, entries: entries.filter(entry => entry.tabId === tab.id) })));
+      setTabs(sortTabs(tabsResult.data.map(tab => ({ id: tab.id, title: tab.title, isDeletable: tab.is_deletable, sortOrder: tab.sort_order ?? getWeekNumber(tab), entries: entries.filter(entry => entry.tabId === tab.id) }))));
       if (aboutResult.error) {
         console.error("No se pudieron cargar los nombres del equipo desde About.", aboutResult.error);
         setNotice({ type: "error", message: "No se pudieron cargar los nombres del equipo desde About." });
@@ -257,6 +544,10 @@ export default function App({ page = "home" }) {
         setTeamMembers(aboutResult.data.content.teamNames.filter(name => typeof name === "string" && name.trim()));
       }
       setLoading(false);
+    }
+
+    function aboutResultPromise() {
+      return supabaseClient.from("site_pages").select("content").eq("slug", "about").maybeSingle();
     }
 
     if (page === "home") loadRemoteData();
@@ -461,7 +752,8 @@ export default function App({ page = "home" }) {
       if (editingEntryId) {
         setTabs(current => current.map(tab => ({ ...tab, entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry) })));
         const retainedPaths = new Set(preparedBlocks.map(block => block.storagePath).filter(Boolean));
-        const removedPaths = (existingEntry.blocks || []).map(block => block.storagePath).filter(path => path && !retainedPaths.has(path));
+        const candidateRemovedPaths = (existingEntry.blocks || []).map(block => block.storagePath).filter(path => path && !retainedPaths.has(path));
+        const removedPaths = filterUnreferencedPaths(candidateRemovedPaths, tabs, { excludeEntryId: editingEntryId });
         if (removedPaths.length && supabaseClient) {
           const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(removedPaths);
           if (cleanupError) {
@@ -480,7 +772,7 @@ export default function App({ page = "home" }) {
           ...tab,
           entries: tab.entries.map(entry => entry.id === editingEntryId ? storedEntry : entry),
         } : tab.id === activeTabId ? { ...tab, entries: [...tab.entries, storedEntry] } : tab);
-        localStorage.setItem(DATA_KEY, JSON.stringify({ tabs: localTabs }));
+        persistLocalTabs(localTabs);
       }
       if (mediaCleanupFailed) {
         setNotice({ type: "error", message: "Los cambios se guardaron, pero no se pudieron limpiar algunos archivos multimedia anteriores." });
@@ -530,7 +822,11 @@ export default function App({ page = "home" }) {
       if (supabaseClient) {
         const { error } = await supabaseClient.from("entries").delete().eq("id", entry.id);
         if (error) { setNotice({ type: "error", message: "No se pudo eliminar el registro." }); return; }
-        const paths = entry.blocks.map(block => block.storagePath).filter(Boolean);
+        const paths = filterUnreferencedPaths(
+          entry.blocks.map(block => block.storagePath),
+          tabs,
+          { excludeEntryId: entry.id },
+        );
         if (paths.length) {
           try {
             const { error: cleanupError } = await supabaseClient.storage.from("project-media").remove(paths);
@@ -541,7 +837,11 @@ export default function App({ page = "home" }) {
           }
         }
       }
-      updateCurrentTab(tab => ({ ...tab, entries: tab.entries.filter(item => item.id !== entry.id) }));
+      setTabs(current => {
+        const next = current.map(tab => tab.id === activeTabId ? { ...tab, entries: tab.entries.filter(item => item.id !== entry.id) } : tab);
+        persistLocalTabs(next);
+        return next;
+      });
       setNotice(mediaCleanupError
         ? { type: "error", message: `Registro eliminado, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
         : { type: "success", message: "Registro eliminado." });
@@ -556,15 +856,236 @@ export default function App({ page = "home" }) {
   }
 
   async function createTab() {
-    const maxWeek = tabs.reduce((highest, tab) => Math.max(highest, Number(tab.title.match(/(\d+)/)?.[1] || 0)), 0);
+    const maxWeek = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0);
     const week = maxWeek + 1;
-    const newTab = { id: `semana-${Date.now()}`, title: `Semana ${String(week).padStart(2, "0")}`, isDeletable: true, entries: [] };
+    const newTab = { id: `semana-${Date.now()}`, title: formatWeekTitle(week), isDeletable: true, sortOrder: week, entries: [] };
     if (supabaseClient) {
       const { error } = await supabaseClient.from("tabs").insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: week });
       if (error) { setNotice({ type: "error", message: `No se pudo crear la semana: ${error.message}` }); return; }
     }
-    setTabs(current => [...current, newTab]);
+    setTabs(current => {
+      const next = sortTabs([...current, newTab]);
+      persistLocalTabs(next);
+      return next;
+    });
     setActiveTabId(newTab.id);
+  }
+
+  async function updateTabWeekNumber(tabId, rawNumber) {
+    const tab = tabs.find(item => item.id === tabId);
+    if (!tab || tab.id === "portada") return false;
+    const weekNumber = Number.parseInt(String(rawNumber).trim(), 10);
+    if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > 999) {
+      setNotice({ type: "error", message: "Ingresa un número de semana válido (entre 1 y 999)." });
+      return false;
+    }
+    const newTitle = formatWeekTitle(weekNumber);
+    const duplicate = tabs.find(item => item.id !== tabId && item.id !== "portada" && (getWeekNumber(item) === weekNumber || item.title.toLowerCase() === newTitle.toLowerCase()));
+    if (duplicate) {
+      setNotice({ type: "error", message: `Ya existe ${newTitle}. Elige un número diferente.` });
+      return false;
+    }
+    if (tab.title === newTitle && tab.sortOrder === weekNumber) {
+      setNotice({ type: "success", message: `La semana ya es ${newTitle}.` });
+      return true;
+    }
+    if (supabaseClient) {
+      const { error } = await supabaseClient
+        .from("tabs")
+        .update({ title: newTitle, sort_order: weekNumber })
+        .eq("id", tabId);
+      if (error) {
+        setNotice({ type: "error", message: `No se pudo actualizar el número de semana: ${error.message}` });
+        return false;
+      }
+    }
+    setTabs(current => {
+      const next = sortTabs(current.map(item => item.id === tabId ? { ...item, title: newTitle, sortOrder: weekNumber } : item));
+      persistLocalTabs(next);
+      return next;
+    });
+    setNotice({ type: "success", message: `Semana actualizada a ${newTitle}.` });
+    return true;
+  }
+
+  async function transferEntries({ entryIds, sourceTabId, targetTabId, mode = "copy" }) {
+    if (deletionLockRef.current || transferBusy || saving) {
+      setNotice({ type: "error", message: "Espera a que termine la operación actual antes de continuar." });
+      return false;
+    }
+    const sourceTab = tabs.find(tab => tab.id === sourceTabId);
+    const entryIdSet = new Set(entryIds || []);
+    const sourceEntries = (sourceTab?.entries || []).filter(entry => entryIdSet.has(entry.id));
+    if (!sourceEntries.length) {
+      setNotice({ type: "error", message: "No se encontraron registros para transferir." });
+      return false;
+    }
+
+    setTransferBusy(true);
+    try {
+      let targetTab = null;
+      let createdNewTab = null;
+
+      if (targetTabId === "__new__") {
+        const maxWeek = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0);
+        const week = maxWeek + 1;
+        const newTab = { id: `semana-${Date.now()}`, title: formatWeekTitle(week), isDeletable: true, sortOrder: week, entries: [] };
+        if (supabaseClient) {
+          const { error: createTabError } = await supabaseClient
+            .from("tabs")
+            .insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: week });
+          if (createTabError) throw createTabError;
+        }
+        createdNewTab = newTab;
+        targetTab = newTab;
+        setTabs(current => {
+          const next = sortTabs([...current, newTab]);
+          persistLocalTabs(next);
+          return next;
+        });
+      } else {
+        targetTab = tabs.find(tab => tab.id === targetTabId);
+      }
+
+      if (!targetTab || targetTab.id === "portada" || targetTab.id === sourceTabId) {
+        setNotice({ type: "error", message: "Selecciona una semana destino válida." });
+        return false;
+      }
+
+      const baseSortOrder = (targetTab.entries || []).reduce((highest, entry) => Math.max(highest, entry.sortOrder ?? -1), -1) + 1;
+      const count = sourceEntries.length;
+      const countLabel = count === 1 ? "el registro" : `${count} registros`;
+
+      if (mode === "move") {
+        if (supabaseClient) {
+          const updateResults = await Promise.all(
+            sourceEntries.map((entry, idx) =>
+              supabaseClient
+                .from("entries")
+                .update({ tab_id: targetTab.id, sort_order: baseSortOrder + idx })
+                .eq("id", entry.id)
+                .select("id, tab_id, title, blocks, created_at, sort_order")
+                .single()
+            )
+          );
+          const failed = updateResults.find(result => result.error);
+          if (failed?.error) throw failed.error;
+        }
+
+        const movedEntries = sourceEntries.map((entry, idx) => ({
+          ...entry,
+          tabId: targetTab.id,
+          sortOrder: baseSortOrder + idx,
+        }));
+
+        if (editingEntryId && entryIdSet.has(editingEntryId)) {
+          cancelEditing();
+        }
+
+        setPendingEntryOrders(current => {
+          const next = { ...current };
+          delete next[sourceTabId];
+          delete next[targetTab.id];
+          return next;
+        });
+
+        setTabs(current => {
+          const hasTarget = current.some(tab => tab.id === targetTab.id);
+          const baseList = hasTarget || !createdNewTab ? current : [...current, createdNewTab];
+          const next = sortTabs(baseList.map(tab => {
+            if (tab.id === sourceTabId) {
+              const remaining = tab.entries
+                .filter(entry => !entryIdSet.has(entry.id))
+                .map((entry, idx) => ({ ...entry, sortOrder: idx }));
+              return { ...tab, entries: remaining };
+            }
+            if (tab.id === targetTab.id) {
+              return { ...tab, entries: [...tab.entries, ...movedEntries] };
+            }
+            return tab;
+          }));
+          persistLocalTabs(next);
+          return next;
+        });
+
+        setNotice({
+          type: "success",
+          message: count === 1
+            ? `Se movió ${countLabel} a ${targetTab.title}.`
+            : `Se movieron ${countLabel} a ${targetTab.title}.`,
+        });
+        return true;
+      }
+
+      const nowMs = Date.now();
+      const preparedCopies = sourceEntries.map((entry, idx) => ({
+        id: newId(),
+        tab_id: targetTab.id,
+        title: entry.title,
+        blocks: (entry.blocks || []).map(block => ({
+          ...blockForStorage(block),
+          id: newId(),
+        })),
+        created_at: new Date(nowMs + idx).toISOString(),
+        sort_order: baseSortOrder + idx,
+      }));
+
+      let insertedEntries = [];
+      if (supabaseClient) {
+        const rowsToInsert = preparedCopies.map(({ id: _localId, ...row }) => row);
+        const { data, error } = await supabaseClient
+          .from("entries")
+          .insert(rowsToInsert)
+          .select("id, tab_id, title, blocks, created_at, sort_order");
+        if (error) throw error;
+        insertedEntries = [...(data || [])]
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map(row => ({
+            id: row.id,
+            tabId: row.tab_id,
+            title: row.title,
+            blocks: Array.isArray(row.blocks) ? row.blocks : [],
+            createdAt: row.created_at,
+            sortOrder: row.sort_order,
+          }));
+      } else {
+        insertedEntries = preparedCopies.map(row => ({
+          id: row.id,
+          tabId: row.tab_id,
+          title: row.title,
+          blocks: row.blocks,
+          createdAt: row.created_at,
+          sortOrder: row.sort_order,
+        }));
+      }
+
+      setTabs(current => {
+        const hasTarget = current.some(tab => tab.id === targetTab.id);
+        const baseList = hasTarget || !createdNewTab ? current : [...current, createdNewTab];
+        const next = sortTabs(baseList.map(tab => tab.id === targetTab.id
+          ? { ...tab, entries: [...tab.entries, ...insertedEntries] }
+          : tab));
+        persistLocalTabs(next);
+        return next;
+      });
+
+      setNotice({
+        type: "success",
+        message: count === 1
+          ? `Se copió ${countLabel} a ${targetTab.title}.`
+          : `Se copiaron ${countLabel} a ${targetTab.title}.`,
+      });
+      return true;
+    } catch (error) {
+      console.error("No se pudieron transferir los registros.", error);
+      setNotice({
+        type: "error",
+        message: `No se pudo ${mode === "move" ? "mover" : "copiar"} la información: ${error.message || "error desconocido."}`,
+      });
+      return false;
+    } finally {
+      setTransferBusy(false);
+    }
   }
 
   async function deleteTab(tabId) {
@@ -582,7 +1103,8 @@ export default function App({ page = "home" }) {
       if (supabaseClient) {
         const { data: rows, error: readError } = await supabaseClient.from("entries").select("blocks").eq("tab_id", tabId);
         if (readError) { setNotice({ type: "error", message: "No se pudieron consultar los archivos de la semana." }); return; }
-        const paths = (rows || []).flatMap(row => row.blocks.map(block => block.storagePath).filter(Boolean));
+        const rawPaths = (rows || []).flatMap(row => row.blocks.map(block => block.storagePath).filter(Boolean));
+        const paths = filterUnreferencedPaths(rawPaths, tabs, { excludeTabId: tabId });
         const { error: entriesError } = await supabaseClient.from("entries").delete().eq("tab_id", tabId);
         if (entriesError) { setNotice({ type: "error", message: "No se pudieron eliminar los registros de la semana." }); return; }
         if (paths.length) {
@@ -602,7 +1124,11 @@ export default function App({ page = "home" }) {
           return;
         }
       }
-      setTabs(current => current.filter(item => item.id !== tabId));
+      setTabs(current => {
+        const next = current.filter(item => item.id !== tabId);
+        persistLocalTabs(next);
+        return next;
+      });
       setActiveTabId(current => current === tabId ? "portada" : current);
       setNotice(mediaCleanupError
         ? { type: "error", message: `Semana eliminada, pero no se pudieron limpiar algunos archivos multimedia: ${mediaCleanupError}` }
@@ -641,7 +1167,25 @@ export default function App({ page = "home" }) {
         <Suspense fallback={<main className="inner-page" role="status">Cargando contenido…</main>}>
           <EditablePage page={page} authenticated={authenticated} />
         </Suspense>
-      ) : <HomePage tabs={tabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} authenticated={authenticated} onCreateTab={createTab} onDeleteTab={deleteTab} entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder, deletingEntryId, deletionInProgress }} editor={editor} loading={loading} teamMembers={teamMembers} deletionInProgress={deletionInProgress} deletingTabId={deletingTabId} />}
+      ) : (
+        <HomePage
+          tabs={tabs}
+          activeTabId={activeTabId}
+          setActiveTabId={setActiveTabId}
+          authenticated={authenticated}
+          onCreateTab={createTab}
+          onDeleteTab={deleteTab}
+          onUpdateWeekNumber={updateTabWeekNumber}
+          onTransferEntries={transferEntries}
+          transferBusy={transferBusy}
+          entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder, deletingEntryId, deletionInProgress }}
+          editor={editor}
+          loading={loading}
+          teamMembers={teamMembers}
+          deletionInProgress={deletionInProgress}
+          deletingTabId={deletingTabId}
+        />
+      )}
       <footer className="site-footer">FabLab I+D <span>/</span> Investigación, diseño y desarrollo</footer>
       {notice && <div className={`toast toast-${notice.type}`} role="status" aria-live="polite">{notice.message}</div>}
       <dialog className="auth-dialog" ref={dialogRef} onClose={() => setAuthError("")}>
