@@ -15,7 +15,7 @@ function SortableEntry({ entry, authenticated, entries, children }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: entry.id, disabled: !authenticated || entries.orderSaving || entries.deletionInProgress });
+  } = useSortable({ id: entry.id, disabled: !authenticated || entries.orderSaving || entries.deletionInProgress || entries.transferBusy });
 
   return (
     <article
@@ -32,7 +32,7 @@ function SortableEntry({ entry, authenticated, entries, children }) {
           ref={setActivatorNodeRef}
           aria-label={`Mover publicación: ${entry.title}`}
           title="Arrastra para reordenar publicaciones; usa las flechas del teclado"
-          disabled={entries.orderSaving || entries.deletionInProgress}
+          disabled={entries.orderSaving || entries.deletionInProgress || entries.transferBusy}
         >
           <GripVertical size={18} aria-hidden="true" />
         </button>
@@ -44,10 +44,33 @@ function SortableEntry({ entry, authenticated, entries, children }) {
 
 export default function EntryList({ entries, authenticated }) {
   const [activeDragId, setActiveDragId] = useState(null);
+  const [transferEntryId, setTransferEntryId] = useState(null);
+  const [transferMode, setTransferMode] = useState("copy");
+  const [transferTargetId, setTransferTargetId] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  function toggleEntryTransfer(entry) {
+    if (transferEntryId === entry.id) {
+      setTransferEntryId(null);
+      return;
+    }
+    setTransferEntryId(entry.id);
+    setTransferMode("copy");
+    setTransferTargetId(entries.otherWeeks?.[0]?.id || "__new__");
+  }
+
+  async function submitEntryTransfer(event, entry) {
+    event.preventDefault();
+    if (!entries.onTransferEntry || entries.transferBusy) return;
+    const validTarget = transferTargetId && (transferTargetId === "__new__" || entries.otherWeeks?.some(tab => tab.id === transferTargetId))
+      ? transferTargetId
+      : entries.otherWeeks?.[0]?.id || "__new__";
+    const ok = await entries.onTransferEntry(entry, validTarget, transferMode);
+    if (ok) setTransferEntryId(null);
+  }
 
   function handleDragStart({ active }) {
     setActiveDragId(active.id);
@@ -86,12 +109,67 @@ export default function EntryList({ entries, authenticated }) {
               <h3>{entry.title}</h3>
               <EntryBlocks blocks={entry.blocks || []} />
               {authenticated && (
-                <div className="entry-actions">
-                  <button className="entry-edit" type="button" onClick={() => entries.edit(entry)}>Editar</button>
-                  {entries.deletingEntryId === entry.id
-                    ? <span className="delete-progress" role="status">Eliminando registro…</span>
-                    : <DeleteFuseButton label="Eliminar registro" disabled={entries.orderDirty || entries.orderSaving || entries.deletionInProgress} onCommit={() => { void entries.delete(entry); }} />}
-                </div>
+                <>
+                  <div className="entry-actions">
+                    <button className="entry-edit" type="button" disabled={entries.transferBusy || entries.deletionInProgress} onClick={() => entries.edit(entry)}>Editar</button>
+                    <button
+                      className="entry-edit"
+                      type="button"
+                      disabled={entries.orderDirty || entries.orderSaving || entries.deletionInProgress || entries.transferBusy}
+                      onClick={() => toggleEntryTransfer(entry)}
+                    >
+                      {transferEntryId === entry.id ? "Cerrar copiar / mover" : "Copiar / mover a otra semana"}
+                    </button>
+                    {entries.deletingEntryId === entry.id
+                      ? <span className="delete-progress" role="status">Eliminando registro…</span>
+                      : <DeleteFuseButton label="Eliminar registro" disabled={entries.orderDirty || entries.orderSaving || entries.deletionInProgress || entries.transferBusy} onCommit={() => { void entries.delete(entry); }} />}
+                  </div>
+                  {transferEntryId === entry.id && (
+                    <form className="entry-transfer-bar animate-in" onSubmit={event => submitEntryTransfer(event, entry)}>
+                      <div className="transfer-mode-switch" role="group" aria-label="Modo de transferencia del registro">
+                        <button
+                          type="button"
+                          className={`transfer-mode-btn ${transferMode === "copy" ? "active" : ""}`}
+                          onClick={() => setTransferMode("copy")}
+                          disabled={entries.transferBusy}
+                        >
+                          Copiar
+                        </button>
+                        <button
+                          type="button"
+                          className={`transfer-mode-btn ${transferMode === "move" ? "active" : ""}`}
+                          onClick={() => setTransferMode("move")}
+                          disabled={entries.transferBusy}
+                        >
+                          Mover
+                        </button>
+                      </div>
+                      <label className="entry-transfer-select-label">
+                        <span>Hacia:</span>
+                        <select
+                          className="form-control"
+                          value={transferTargetId && (transferTargetId === "__new__" || entries.otherWeeks?.some(tab => tab.id === transferTargetId))
+                            ? transferTargetId
+                            : entries.otherWeeks?.[0]?.id || "__new__"}
+                          onChange={event => setTransferTargetId(event.target.value)}
+                          disabled={entries.transferBusy}
+                          aria-label="Semana destino para este registro"
+                        >
+                          {(entries.otherWeeks || []).map(tab => (
+                            <option key={tab.id} value={tab.id}>{tab.title}</option>
+                          ))}
+                          <option value="__new__">+ Crear {entries.nextWeekLabel || "nueva semana"}</option>
+                        </select>
+                      </label>
+                      <div className="entry-transfer-actions">
+                        <button className="button button-ghost button-sm" type="button" disabled={entries.transferBusy} onClick={() => setTransferEntryId(null)}>Cancelar</button>
+                        <button className="button button-primary button-sm" type="submit" disabled={entries.transferBusy}>
+                          {entries.transferBusy ? "Procesando…" : transferMode === "move" ? "Mover registro" : "Copiar registro"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
               )}
             </SortableEntry>
           ))}
