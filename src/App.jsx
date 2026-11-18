@@ -28,11 +28,32 @@ function newId() {
   return globalThis.crypto?.randomUUID?.() || `entry-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function getExplicitWeekNumber(tab) {
+  if (!tab || tab.id === "portada") return null;
+  const match = String(tab.title || "").trim().match(/^semana\s+(\d+)$/i);
+  return match ? Number(match[1]) : null;
+}
+
 function getWeekNumber(tab) {
   if (!tab || tab.id === "portada") return 0;
-  const match = String(tab.title || "").match(/(\d+)/);
-  if (match) return Number(match[1]);
+  const explicit = getExplicitWeekNumber(tab);
+  if (explicit !== null) return explicit;
   return typeof tab.sortOrder === "number" && tab.sortOrder > 0 ? tab.sortOrder : 1;
+}
+
+function getNextWeekNumber(tabList) {
+  return (tabList || []).reduce((highest, tab) => {
+    const num = getExplicitWeekNumber(tab);
+    return num !== null ? Math.max(highest, num) : highest;
+  }, 0) + 1;
+}
+
+function getNextSortOrder(tabList) {
+  return (tabList || []).reduce((highest, tab) => {
+    if (tab.id === "portada") return highest;
+    const order = typeof tab.sortOrder === "number" ? tab.sortOrder : getWeekNumber(tab);
+    return Math.max(highest, order);
+  }, 0) + 1;
 }
 
 function formatWeekTitle(weekNumber) {
@@ -48,6 +69,42 @@ function sortTabs(tabList) {
     if (orderA !== orderB) return orderA - orderB;
     return String(a.title || "").localeCompare(String(b.title || ""), "es", { numeric: true });
   });
+}
+
+function computeOrderedTabs(currentTabs, targetTab, insertAfterTabId = "__end__", autoWeekNumber = null) {
+  const portadaTab = currentTabs.find(tab => tab.id === "portada");
+  const currentNonPortada = currentTabs.filter(tab => tab.id !== "portada");
+  const others = currentNonPortada.filter(tab => tab.id !== targetTab.id);
+
+  let insertIndex = others.length;
+  if (insertAfterTabId === "__start__") {
+    insertIndex = 0;
+  } else if (insertAfterTabId === "__end__") {
+    insertIndex = others.length;
+  } else if (insertAfterTabId === "__keep__") {
+    const existingIndex = currentNonPortada.findIndex(tab => tab.id === targetTab.id);
+    insertIndex = existingIndex >= 0 ? Math.min(existingIndex, others.length) : others.length;
+  } else if (insertAfterTabId === "__auto__" && autoWeekNumber !== null) {
+    const nextHigherIndex = others.findIndex(tab => {
+      const num = getExplicitWeekNumber(tab);
+      return num !== null && num > autoWeekNumber;
+    });
+    insertIndex = nextHigherIndex >= 0 ? nextHigherIndex : others.length;
+  } else {
+    const afterIdx = others.findIndex(tab => tab.id === insertAfterTabId);
+    insertIndex = afterIdx >= 0 ? afterIdx + 1 : others.length;
+  }
+
+  const orderedNonPortada = [
+    ...others.slice(0, insertIndex),
+    targetTab,
+    ...others.slice(insertIndex),
+  ].map((tab, idx) => ({ ...tab, sortOrder: idx + 1 }));
+
+  return {
+    nextTabs: portadaTab ? [portadaTab, ...orderedNonPortada] : orderedNonPortada,
+    orderedNonPortada,
+  };
 }
 
 function persistLocalTabs(tabList) {
@@ -152,7 +209,7 @@ function HomePage({
   authenticated,
   onCreateTab,
   onDeleteTab,
-  onUpdateWeekNumber,
+  onUpdateTab,
   onTransferEntries,
   transferBusy,
   entries,
@@ -166,13 +223,25 @@ function HomePage({
   const deletingTab = tabs.find(tab => tab.id === deletingTabId);
   const allEntries = tabs.reduce((count, tab) => count + tab.entries.length, 0);
   const isEditableWeek = Boolean(currentTab && currentTab.id !== "portada");
+  const allWeekTabs = tabs.filter(tab => tab.id !== "portada");
   const otherWeekTabs = tabs.filter(tab => tab.id !== "portada" && tab.id !== activeTabId);
-  const nextAutoWeekNumber = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0) + 1;
+  const nextAutoWeekNumber = getNextWeekNumber(tabs);
   const nextAutoWeekLabel = formatWeekTitle(nextAutoWeekNumber);
 
+  const [isCreatingWeek, setIsCreatingWeek] = useState(false);
+  const [createMode, setCreateMode] = useState("number");
+  const [createWeekNumber, setCreateWeekNumber] = useState("");
+  const [createCustomName, setCreateCustomName] = useState("");
+  const [createInsertAfter, setCreateInsertAfter] = useState("__end__");
+  const [creatingWeek, setCreatingWeek] = useState(false);
+
   const [isEditingWeek, setIsEditingWeek] = useState(false);
+  const [editMode, setEditMode] = useState("number");
   const [weekNumberInput, setWeekNumberInput] = useState("");
-  const [savingWeekNumber, setSavingWeekNumber] = useState(false);
+  const [weekNameInput, setWeekNameInput] = useState("");
+  const [editInsertAfter, setEditInsertAfter] = useState("__auto__");
+  const [savingWeekEdit, setSavingWeekEdit] = useState(false);
+
   const [isTransferringWeek, setIsTransferringWeek] = useState(false);
   const [weekTransferMode, setWeekTransferMode] = useState("copy");
   const [weekTransferTargetId, setWeekTransferTargetId] = useState("");
@@ -184,11 +253,33 @@ function HomePage({
   }, [activeTabId]);
 
   useEffect(() => {
+    if (!authenticated) {
+      setIsCreatingWeek(false);
+      setIsEditingWeek(false);
+      setIsTransferringWeek(false);
+    }
+  }, [authenticated]);
+
+  useEffect(() => {
     if (!isTransferringWeek) return;
     if (!weekTransferTargetId || (weekTransferTargetId !== "__new__" && !otherWeekTabs.some(tab => tab.id === weekTransferTargetId))) {
       setWeekTransferTargetId(otherWeekTabs[0]?.id || "__new__");
     }
   }, [isTransferringWeek, otherWeekTabs, weekTransferTargetId]);
+
+  function openWeekCreator() {
+    if (isCreatingWeek) {
+      setIsCreatingWeek(false);
+      return;
+    }
+    setIsEditingWeek(false);
+    setIsTransferringWeek(false);
+    setCreateMode("number");
+    setCreateWeekNumber(String(nextAutoWeekNumber));
+    setCreateCustomName("");
+    setCreateInsertAfter("__end__");
+    setIsCreatingWeek(true);
+  }
 
   function openWeekEditor(location = "sidebar") {
     if (!currentTab) return;
@@ -196,9 +287,21 @@ function HomePage({
       setIsEditingWeek(false);
       return;
     }
+    const explicitNum = getExplicitWeekNumber(currentTab);
     setPanelLocation(location);
+    setIsCreatingWeek(false);
     setIsTransferringWeek(false);
-    setWeekNumberInput(String(getWeekNumber(currentTab) || 1));
+    if (explicitNum !== null) {
+      setEditMode("number");
+      setWeekNumberInput(String(explicitNum));
+      setWeekNameInput(currentTab.title);
+      setEditInsertAfter("__auto__");
+    } else {
+      setEditMode("custom");
+      setWeekNumberInput(String(nextAutoWeekNumber));
+      setWeekNameInput(currentTab.title || "");
+      setEditInsertAfter("__keep__");
+    }
     setIsEditingWeek(true);
   }
 
@@ -209,21 +312,47 @@ function HomePage({
       return;
     }
     setPanelLocation(location);
+    setIsCreatingWeek(false);
     setIsEditingWeek(false);
     setWeekTransferMode("copy");
     setWeekTransferTargetId(otherWeekTabs[0]?.id || "__new__");
     setIsTransferringWeek(true);
   }
 
-  async function submitWeekNumber(event) {
+  async function submitNewTab(event) {
     event.preventDefault();
-    if (!currentTab || savingWeekNumber) return;
-    setSavingWeekNumber(true);
+    if (creatingWeek) return;
+    setCreatingWeek(true);
     try {
-      const ok = await onUpdateWeekNumber(currentTab.id, weekNumberInput);
+      const ok = await onCreateTab({
+        mode: createMode,
+        weekNumber: createWeekNumber,
+        customTitle: createCustomName,
+        insertAfterTabId: createInsertAfter,
+      });
+      if (ok) {
+        setIsCreatingWeek(false);
+        setCreateCustomName("");
+      }
+    } finally {
+      setCreatingWeek(false);
+    }
+  }
+
+  async function submitWeekEdit(event) {
+    event.preventDefault();
+    if (!currentTab || savingWeekEdit) return;
+    setSavingWeekEdit(true);
+    try {
+      const ok = await onUpdateTab(currentTab.id, {
+        mode: editMode,
+        weekNumber: weekNumberInput,
+        customTitle: weekNameInput,
+        insertAfterTabId: editInsertAfter,
+      });
       if (ok) setIsEditingWeek(false);
     } finally {
-      setSavingWeekNumber(false);
+      setSavingWeekEdit(false);
     }
   }
 
@@ -240,31 +369,192 @@ function HomePage({
     if (ok) setIsTransferringWeek(false);
   }
 
-  const parsedPreviewNumber = Number.parseInt(String(weekNumberInput).trim(), 10);
-  const previewWeekTitle = Number.isInteger(parsedPreviewNumber) && parsedPreviewNumber >= 1 && parsedPreviewNumber <= 999
-    ? formatWeekTitle(parsedPreviewNumber)
-    : null;
+  const parsedCreateNumber = Number.parseInt(String(createWeekNumber).trim(), 10);
+  const previewCreateTitle = createMode === "number"
+    ? (Number.isInteger(parsedCreateNumber) && parsedCreateNumber >= 1 && parsedCreateNumber <= 999 ? formatWeekTitle(parsedCreateNumber) : null)
+    : (createCustomName.trim() || null);
+
+  const parsedEditNumber = Number.parseInt(String(weekNumberInput).trim(), 10);
+  const previewEditTitle = editMode === "number"
+    ? (Number.isInteger(parsedEditNumber) && parsedEditNumber >= 1 && parsedEditNumber <= 999 ? formatWeekTitle(parsedEditNumber) : null)
+    : (weekNameInput.trim() || null);
+
+  function renderWeekCreatorForm() {
+    return (
+      <form className="week-admin-popover animate-in" onSubmit={submitNewTab}>
+        <span className="field-label">Tipo de semana / sección</span>
+        <div className="transfer-mode-switch" role="group" aria-label="Tipo de semana a crear">
+          <button
+            type="button"
+            className={`transfer-mode-btn ${createMode === "number" ? "active" : ""}`}
+            onClick={() => {
+              setCreateMode("number");
+              setCreateWeekNumber(current => current || String(nextAutoWeekNumber));
+            }}
+            disabled={creatingWeek}
+          >
+            Por número
+          </button>
+          <button
+            type="button"
+            className={`transfer-mode-btn ${createMode === "custom" ? "active" : ""}`}
+            onClick={() => {
+              setCreateMode("custom");
+              setCreateInsertAfter(current => (current === "__auto__" ? "__end__" : current));
+            }}
+            disabled={creatingWeek}
+          >
+            Con nombre
+          </button>
+        </div>
+
+        {createMode === "number" ? (
+          <>
+            <label className="field-label" htmlFor="createWeekNumber">Número de semana</label>
+            <input
+              id="createWeekNumber"
+              className="form-control"
+              type="number"
+              min={1}
+              max={999}
+              required
+              value={createWeekNumber}
+              onChange={event => setCreateWeekNumber(event.target.value)}
+              disabled={creatingWeek}
+            />
+          </>
+        ) : (
+          <>
+            <label className="field-label" htmlFor="createWeekName">Nombre personalizado</label>
+            <input
+              id="createWeekName"
+              className="form-control"
+              type="text"
+              maxLength={60}
+              required
+              placeholder="Ej. Midterm Review"
+              value={createCustomName}
+              onChange={event => setCreateCustomName(event.target.value)}
+              disabled={creatingWeek}
+            />
+          </>
+        )}
+
+        <label className="field-label" htmlFor="createWeekPosition">Ubicación en la lista</label>
+        <select
+          id="createWeekPosition"
+          className="form-control"
+          value={createInsertAfter}
+          onChange={event => setCreateInsertAfter(event.target.value)}
+          disabled={creatingWeek}
+        >
+          <option value="__end__">Al final de la lista</option>
+          {createMode === "number" && <option value="__auto__">Orden automático según número</option>}
+          <option value="__start__">Al inicio (primera)</option>
+          {allWeekTabs.map(tab => (
+            <option key={tab.id} value={tab.id}>Después de {tab.title}</option>
+          ))}
+        </select>
+
+        {previewCreateTitle && (
+          <small className="week-admin-preview">
+            Se creará como <strong>{previewCreateTitle}</strong>
+          </small>
+        )}
+
+        <div className="week-admin-actions">
+          <button className="button button-ghost" type="button" disabled={creatingWeek} onClick={() => setIsCreatingWeek(false)}>Cancelar</button>
+          <button className="button button-primary" type="submit" disabled={creatingWeek || !previewCreateTitle}>
+            {creatingWeek ? "Creando…" : "Crear"}
+          </button>
+        </div>
+      </form>
+    );
+  }
 
   function renderWeekEditorForm(idPrefix) {
     return (
-      <form className="week-admin-popover animate-in" onSubmit={submitWeekNumber}>
-        <label className="field-label" htmlFor={`${idPrefix}WeekNumber`}>Nuevo número de semana</label>
-        <input
-          id={`${idPrefix}WeekNumber`}
+      <form className="week-admin-popover animate-in" onSubmit={submitWeekEdit}>
+        <span className="field-label">Formato de la semana</span>
+        <div className="transfer-mode-switch" role="group" aria-label="Formato del título de la semana">
+          <button
+            type="button"
+            className={`transfer-mode-btn ${editMode === "number" ? "active" : ""}`}
+            onClick={() => {
+              setEditMode("number");
+              setEditInsertAfter("__auto__");
+            }}
+            disabled={savingWeekEdit}
+          >
+            Por número
+          </button>
+          <button
+            type="button"
+            className={`transfer-mode-btn ${editMode === "custom" ? "active" : ""}`}
+            onClick={() => {
+              setEditMode("custom");
+              setEditInsertAfter("__keep__");
+            }}
+            disabled={savingWeekEdit}
+          >
+            Con nombre
+          </button>
+        </div>
+
+        {editMode === "number" ? (
+          <>
+            <label className="field-label" htmlFor={`${idPrefix}WeekNumber`}>Nuevo número de semana</label>
+            <input
+              id={`${idPrefix}WeekNumber`}
+              className="form-control"
+              type="number"
+              min={1}
+              max={999}
+              required
+              value={weekNumberInput}
+              onChange={event => setWeekNumberInput(event.target.value)}
+              disabled={savingWeekEdit}
+            />
+          </>
+        ) : (
+          <>
+            <label className="field-label" htmlFor={`${idPrefix}WeekName`}>Nombre de la semana / sección</label>
+            <input
+              id={`${idPrefix}WeekName`}
+              className="form-control"
+              type="text"
+              maxLength={60}
+              required
+              placeholder="Ej. Midterm Review"
+              value={weekNameInput}
+              onChange={event => setWeekNameInput(event.target.value)}
+              disabled={savingWeekEdit}
+            />
+          </>
+        )}
+
+        <label className="field-label" htmlFor={`${idPrefix}WeekPosition`}>Ubicación en la lista</label>
+        <select
+          id={`${idPrefix}WeekPosition`}
           className="form-control"
-          type="number"
-          min={1}
-          max={999}
-          required
-          value={weekNumberInput}
-          onChange={event => setWeekNumberInput(event.target.value)}
-          disabled={savingWeekNumber}
-        />
-        {previewWeekTitle && <small className="week-admin-preview">Se mostrará como <strong>{previewWeekTitle}</strong></small>}
+          value={editInsertAfter}
+          onChange={event => setEditInsertAfter(event.target.value)}
+          disabled={savingWeekEdit}
+        >
+          {editMode === "number" && <option value="__auto__">Orden automático según número</option>}
+          <option value="__keep__">Mantener posición actual</option>
+          <option value="__start__">Al inicio (primera)</option>
+          {otherWeekTabs.map(tab => (
+            <option key={tab.id} value={tab.id}>Después de {tab.title}</option>
+          ))}
+          <option value="__end__">Al final de la lista</option>
+        </select>
+
+        {previewEditTitle && <small className="week-admin-preview">Se mostrará como <strong>{previewEditTitle}</strong></small>}
         <div className="week-admin-actions">
-          <button className="button button-ghost" type="button" disabled={savingWeekNumber} onClick={() => setIsEditingWeek(false)}>Cancelar</button>
-          <button className="button button-primary" type="submit" disabled={savingWeekNumber || !previewWeekTitle}>
-            {savingWeekNumber ? "Guardando…" : "Guardar"}
+          <button className="button button-ghost" type="button" disabled={savingWeekEdit} onClick={() => setIsEditingWeek(false)}>Cancelar</button>
+          <button className="button button-primary" type="submit" disabled={savingWeekEdit || !previewEditTitle}>
+            {savingWeekEdit ? "Guardando…" : "Guardar"}
           </button>
         </div>
       </form>
@@ -327,16 +617,19 @@ function HomePage({
         {authenticated && (
           <div className="sidebar-section admin-controls">
             <span className="eyebrow">Gestión</span>
-            <button className="button button-secondary button-wide" type="button" disabled={deletionInProgress || transferBusy} onClick={onCreateTab}>+ Añadir semana</button>
+            <button className="button button-secondary button-wide" type="button" disabled={deletionInProgress || transferBusy || creatingWeek} onClick={openWeekCreator}>
+              {isCreatingWeek ? "Cerrar nueva semana" : "+ Añadir semana"}
+            </button>
+            {isCreatingWeek && renderWeekCreatorForm()}
             {isEditableWeek && (
               <>
                 <button
                   className="button button-secondary button-wide"
                   type="button"
-                  disabled={deletionInProgress || transferBusy || savingWeekNumber}
+                  disabled={deletionInProgress || transferBusy || savingWeekEdit}
                   onClick={() => openWeekEditor("sidebar")}
                 >
-                  {isEditingWeek && panelLocation === "sidebar" ? "Cerrar edición de N.º" : "Editar N.º de semana"}
+                  {isEditingWeek && panelLocation === "sidebar" ? "Cerrar edición" : "Editar semana"}
                 </button>
                 {isEditingWeek && panelLocation === "sidebar" && renderWeekEditorForm("sidebar")}
                 <button
@@ -377,10 +670,10 @@ function HomePage({
                     <button
                       className="button button-secondary button-sm"
                       type="button"
-                      disabled={deletionInProgress || transferBusy || savingWeekNumber}
+                      disabled={deletionInProgress || transferBusy || savingWeekEdit}
                       onClick={() => openWeekEditor("heading")}
                     >
-                      {isEditingWeek && panelLocation === "heading" ? "Cerrar edición de N.º" : "Editar N.º"}
+                      {isEditingWeek && panelLocation === "heading" ? "Cerrar edición" : "Editar semana"}
                     </button>
                     {currentTab?.entries?.length > 0 && (
                       <button
@@ -855,56 +1148,137 @@ export default function App({ page = "home" }) {
     }
   }
 
-  async function createTab() {
-    const maxWeek = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0);
-    const week = maxWeek + 1;
-    const newTab = { id: `semana-${Date.now()}`, title: formatWeekTitle(week), isDeletable: true, sortOrder: week, entries: [] };
-    if (supabaseClient) {
-      const { error } = await supabaseClient.from("tabs").insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: week });
-      if (error) { setNotice({ type: "error", message: `No se pudo crear la semana: ${error.message}` }); return; }
+  function validateTabTitleInput({ mode, weekNumber, customTitle, excludeTabId = null }) {
+    if (mode === "number") {
+      const parsed = Number.parseInt(String(weekNumber).trim(), 10);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 999) {
+        return { error: "Ingresa un número de semana válido (entre 1 y 999)." };
+      }
+      const title = formatWeekTitle(parsed);
+      const duplicate = tabs.find(item => item.id !== excludeTabId && item.id !== "portada" && (getExplicitWeekNumber(item) === parsed || item.title.trim().toLowerCase() === title.toLowerCase()));
+      if (duplicate) {
+        return { error: `Ya existe ${title}. Elige un número diferente.` };
+      }
+      return { title, autoWeekNumber: parsed };
     }
-    setTabs(current => {
-      const next = sortTabs([...current, newTab]);
-      persistLocalTabs(next);
-      return next;
-    });
-    setActiveTabId(newTab.id);
+
+    const title = String(customTitle || "").trim().replace(/\s+/g, " ");
+    if (!title) {
+      return { error: "Escribe un nombre para la semana o sección." };
+    }
+    if (title.length > 60) {
+      return { error: "El nombre debe tener máximo 60 caracteres." };
+    }
+    if (["portada", "portada general"].includes(title.toLowerCase())) {
+      return { error: "Ese nombre está reservado para la portada." };
+    }
+    const duplicate = tabs.find(item => item.id !== excludeTabId && item.id !== "portada" && item.title.trim().toLowerCase() === title.toLowerCase());
+    if (duplicate) {
+      return { error: `Ya existe una sección llamada "${title}".` };
+    }
+    return { title, autoWeekNumber: getExplicitWeekNumber({ id: "tmp", title }) };
   }
 
-  async function updateTabWeekNumber(tabId, rawNumber) {
+  async function createTab({ mode = "number", weekNumber, customTitle = "", insertAfterTabId = "__end__" } = {}) {
+    const validation = validateTabTitleInput({
+      mode,
+      weekNumber: weekNumber ?? getNextWeekNumber(tabs),
+      customTitle,
+    });
+    if (validation.error) {
+      setNotice({ type: "error", message: validation.error });
+      return false;
+    }
+
+    const newTab = {
+      id: `semana-${Date.now()}`,
+      title: validation.title,
+      isDeletable: true,
+      sortOrder: getNextSortOrder(tabs),
+      entries: [],
+    };
+    const { nextTabs, orderedNonPortada } = computeOrderedTabs(tabs, newTab, insertAfterTabId, validation.autoWeekNumber);
+    const createdTab = orderedNonPortada.find(item => item.id === newTab.id) || newTab;
+    const changedExistingTabs = orderedNonPortada.filter(item => {
+      if (item.id === newTab.id) return false;
+      const prev = tabs.find(tab => tab.id === item.id);
+      return prev && prev.sortOrder !== item.sortOrder;
+    });
+
+    if (supabaseClient) {
+      const { error: insertError } = await supabaseClient
+        .from("tabs")
+        .insert({ id: createdTab.id, title: createdTab.title, is_deletable: true, sort_order: createdTab.sortOrder });
+      if (insertError) {
+        setNotice({ type: "error", message: `No se pudo crear la sección: ${insertError.message}` });
+        return false;
+      }
+      if (changedExistingTabs.length) {
+        const reorderResults = await Promise.all(
+          changedExistingTabs.map(item =>
+            supabaseClient.from("tabs").update({ sort_order: item.sortOrder }).eq("id", item.id)
+          )
+        );
+        const reorderError = reorderResults.find(res => res.error)?.error;
+        if (reorderError) {
+          console.error("Se creó la sección, pero no se pudo actualizar el orden de las demás.", reorderError);
+        }
+      }
+    }
+
+    setTabs(nextTabs);
+    persistLocalTabs(nextTabs);
+    setActiveTabId(createdTab.id);
+    setNotice({ type: "success", message: `Se creó "${createdTab.title}".` });
+    return true;
+  }
+
+  async function updateTab(tabId, { mode = "number", weekNumber, customTitle = "", insertAfterTabId = "__keep__" } = {}) {
     const tab = tabs.find(item => item.id === tabId);
     if (!tab || tab.id === "portada") return false;
-    const weekNumber = Number.parseInt(String(rawNumber).trim(), 10);
-    if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > 999) {
-      setNotice({ type: "error", message: "Ingresa un número de semana válido (entre 1 y 999)." });
+
+    const validation = validateTabTitleInput({
+      mode,
+      weekNumber,
+      customTitle,
+      excludeTabId: tabId,
+    });
+    if (validation.error) {
+      setNotice({ type: "error", message: validation.error });
       return false;
     }
-    const newTitle = formatWeekTitle(weekNumber);
-    const duplicate = tabs.find(item => item.id !== tabId && item.id !== "portada" && (getWeekNumber(item) === weekNumber || item.title.toLowerCase() === newTitle.toLowerCase()));
-    if (duplicate) {
-      setNotice({ type: "error", message: `Ya existe ${newTitle}. Elige un número diferente.` });
-      return false;
-    }
-    if (tab.title === newTitle && tab.sortOrder === weekNumber) {
-      setNotice({ type: "success", message: `La semana ya es ${newTitle}.` });
+
+    const updatedTarget = { ...tab, title: validation.title };
+    const { nextTabs, orderedNonPortada } = computeOrderedTabs(tabs, updatedTarget, insertAfterTabId, validation.autoWeekNumber);
+    const finalTarget = orderedNonPortada.find(item => item.id === tabId) || updatedTarget;
+    const changedTabs = orderedNonPortada.filter(item => {
+      const prev = tabs.find(existing => existing.id === item.id);
+      return !prev || prev.title !== item.title || prev.sortOrder !== item.sortOrder;
+    });
+
+    if (!changedTabs.length) {
+      setNotice({ type: "success", message: `Sin cambios en "${finalTarget.title}".` });
       return true;
     }
+
     if (supabaseClient) {
-      const { error } = await supabaseClient
-        .from("tabs")
-        .update({ title: newTitle, sort_order: weekNumber })
-        .eq("id", tabId);
-      if (error) {
-        setNotice({ type: "error", message: `No se pudo actualizar el número de semana: ${error.message}` });
+      const updateResults = await Promise.all(
+        changedTabs.map(item =>
+          item.id === tabId
+            ? supabaseClient.from("tabs").update({ title: item.title, sort_order: item.sortOrder }).eq("id", item.id)
+            : supabaseClient.from("tabs").update({ sort_order: item.sortOrder }).eq("id", item.id)
+        )
+      );
+      const failed = updateResults.find(res => res.error)?.error;
+      if (failed) {
+        setNotice({ type: "error", message: `No se pudo actualizar la semana: ${failed.message}` });
         return false;
       }
     }
-    setTabs(current => {
-      const next = sortTabs(current.map(item => item.id === tabId ? { ...item, title: newTitle, sortOrder: weekNumber } : item));
-      persistLocalTabs(next);
-      return next;
-    });
-    setNotice({ type: "success", message: `Semana actualizada a ${newTitle}.` });
+
+    setTabs(nextTabs);
+    persistLocalTabs(nextTabs);
+    setNotice({ type: "success", message: `Actualizado a "${finalTarget.title}".` });
     return true;
   }
 
@@ -927,13 +1301,13 @@ export default function App({ page = "home" }) {
       let createdNewTab = null;
 
       if (targetTabId === "__new__") {
-        const maxWeek = tabs.reduce((highest, tab) => Math.max(highest, getWeekNumber(tab)), 0);
-        const week = maxWeek + 1;
-        const newTab = { id: `semana-${Date.now()}`, title: formatWeekTitle(week), isDeletable: true, sortOrder: week, entries: [] };
+        const week = getNextWeekNumber(tabs);
+        const sortOrder = getNextSortOrder(tabs);
+        const newTab = { id: `semana-${Date.now()}`, title: formatWeekTitle(week), isDeletable: true, sortOrder, entries: [] };
         if (supabaseClient) {
           const { error: createTabError } = await supabaseClient
             .from("tabs")
-            .insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: week });
+            .insert({ id: newTab.id, title: newTab.title, is_deletable: true, sort_order: sortOrder });
           if (createTabError) throw createTabError;
         }
         createdNewTab = newTab;
@@ -1175,7 +1549,7 @@ export default function App({ page = "home" }) {
           authenticated={authenticated}
           onCreateTab={createTab}
           onDeleteTab={deleteTab}
-          onUpdateWeekNumber={updateTabWeekNumber}
+          onUpdateTab={updateTab}
           onTransferEntries={transferEntries}
           transferBusy={transferBusy}
           entries={{ delete: deleteEntry, edit: editEntry, reorder: reorderEntries, saveOrder: saveEntryOrder, pendingEntryOrders, savingEntryOrder, deletingEntryId, deletionInProgress }}
