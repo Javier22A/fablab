@@ -496,3 +496,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   gap: .45rem;
   margin-left: auto;
 }
+
+.tab-button {
+  align-items: center;
+  gap: .5rem;
+}
+
+.tab-button > span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.week-admin-popover .form-control {
+  padding: .55rem .65rem;
+  font-size: .74rem;
+}
+
